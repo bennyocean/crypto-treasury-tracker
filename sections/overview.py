@@ -185,23 +185,14 @@ def render_overview():
             table_search = table
 
         len_table = int(table_search.shape[0])
-
-        # pick a default based on list type
-        if list_choice == "DATCOs":
-            default_rows = len_table
-        else:
-            default_rows = min(50, len_table)
-
-        # bounds: allow 0 when empty
+        default_rows = (len_table if list_choice == "DATCOs" else min(50, len_table))
         min_rows = 0 if len_table == 0 else 1
         max_rows = len_table
 
-        # sanitize any previously stored value so it doesn't violate new bounds
-        if "tbl_rows" in st.session_state:
-            cur = int(st.session_state["tbl_rows"])
-            if cur < min_rows or cur > max_rows:
-                st.session_state["tbl_rows"] = int(default_rows)
-            
+        # Determine a safe starting value WITHOUT writing session_state
+        prev = st.session_state.get("tbl_rows", None)
+        start_val = int(default_rows) if prev is None else max(min_rows, min(int(prev), max_rows))
+
         with c2:
             if "ui_entity_type" not in st.session_state:
                 st.session_state["ui_entity_type"] = st.session_state.get("flt_entity_type", "All")
@@ -227,7 +218,7 @@ def render_overview():
                 f"Adjust Rows (Max. {max_rows})",
                 min_value=min_rows,
                 max_value=max_rows,
-                value=int(default_rows),   # safe even when 0
+                value=start_val,     # safe starting value
                 step=1,
                 help=(
                     "Select number of rows to display, sorted by USD value. "
