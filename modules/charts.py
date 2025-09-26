@@ -12,7 +12,7 @@ TYPE_PALETTE = {
     "Public Company": (123, 197, 237), # blue 
     "Private Company": (232, 118, 226), # rose 
     "DAO": (237, 247, 94), # amber 
-    "Foundation": (34, 197, 94), # green 
+    "Non-Profit Organization": (34, 197, 94), # green 
     "Government": (245, 184, 122), # slate 
     "Other": (250, 250, 250), # white
     }
