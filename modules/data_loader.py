@@ -90,7 +90,6 @@ def load_last_prices(filename=None):
             return {k.upper(): float(v) for k, v in data.items()}
     return DEFAULT_PRICES.copy()
 
-
 def save_last_prices(prices: dict, filename=None):
     filename = filename or LOCAL_FALLBACK_FILE
     ensure_dir_for(filename)
@@ -98,9 +97,12 @@ def save_last_prices(prices: dict, filename=None):
     with open(filename, "w") as f:
         json.dump(out, f)
 
-@st.cache_data(ttl=300, show_spinner=False)  # 5 minutes
-def read_central_prices_from_sheet() -> dict | None:
-    """Read latest BTC/ETH USD from Google Sheet 'prices' worksheet."""
+
+@st.cache_data(ttl=300, show_spinner=False)
+def read_central_prices_from_sheet() -> tuple[dict | None, pd.Timestamp | None]:
+    """
+    Returns a tuple  prices dict  latest timestamp as tz aware UTC pandas Timestamp
+    """
     try:
         import gspread
         from google.oauth2.service_account import Credentials
@@ -108,19 +110,25 @@ def read_central_prices_from_sheet() -> dict | None:
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
         ws = client.open("master_table_v01").worksheet("prices")
-        rows = ws.get_all_records(value_render_option="UNFORMATTED_VALUE")  # [{'asset':'BTC','usd':65000.0,'timestamp':...}, ...]
+        rows = ws.get_all_records(value_render_option="UNFORMATTED_VALUE")
         if not rows:
-            return None
+            return None, None
         df = pd.DataFrame(rows)
-        if df.empty:
-            return None
-        # latest value per asset by timestamp
-        df = df.sort_values("timestamp")
-        latest = df.groupby("asset")["usd"].last().to_dict()
-        # normalize keys: {"BTC": 65000.0, "ETH": 3500.0}
-        return {k.upper(): float(v) for k, v in latest.items()}
+        if df.empty or "asset" not in df or "usd" not in df or "timestamp" not in df:
+            return None, None
+
+        # cast timestamp column to int, interpret as epoch seconds
+        df["ts"] = pd.to_datetime(df["timestamp"].astype(int), unit="s", utc=True)
+
+        df = df.sort_values("ts")
+        latest_prices = df.groupby("asset")["usd"].last().to_dict()
+        last_ts = df["ts"].max()
+
+        return ({k.upper(): float(str(v).replace(",", ".")) for k, v in latest_prices.items()},
+                last_ts)
     except Exception:
-        return None
+        return None, None
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_prices():
@@ -149,6 +157,7 @@ def get_prices():
     last = load_last_prices()
     return tuple(float(last.get(a, 0.0)) for a in ASSETS)
 
+
 # Function to get raw treasury data from master sheets
 def load_units():
     scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
@@ -172,10 +181,10 @@ def load_units():
             dfs.append(df_a)
 
     if not dfs:
-        return pd.DataFrame(columns=["Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)"])
+        return pd.DataFrame(columns=["Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)", "Sector", "Industry", "About", "Website"]) #
 
     df = pd.concat(dfs, ignore_index=True)
-    df = df[["Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)"]]
+    df = df[["Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)", "Sector", "Industry", "About", "Website"]] # 
     df["Ticker"] = df["Ticker"].astype(str).str.strip()
     #df["Ticker"] = df["Ticker"].replace({"None": np.nan, "": np.nan}).astype("string")
 
@@ -267,4 +276,67 @@ def load_historic_data():
         errors="coerce"
     )
     df = df.dropna(subset=["Date"])
+    return df
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_planned_data() -> pd.DataFrame:
+    """
+    Reads planned data and returns a normalized DataFrame.
+    """
+    scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
+    service_account_info = st.secrets["gcp_service_account"]
+    creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
+    client = gspread.authorize(creds)
+    sheet = client.open("master_table_v01")
+
+    # One-range batch read (keeps same pattern as your other loaders)
+    tables = _batch_get_tables(sheet, ["planned_data!A:Z"])
+    if not tables or not tables[0]:
+        return pd.DataFrame(columns=[
+            "Entity Name","Ticker","Entity Type","Country","Crypto Asset",
+            "Planned USD","Invested/Cost USD",
+            "Funding Method","Status","Timeline",
+            "Data Source","Date Source","Comments"
+        ])
+
+    df = _df_from_table(tables[0])
+    if df is None or df.empty:
+        return df
+
+    # Normalize columns you care about (create if missing)
+    needed = [
+        "Entity Name","Ticker","Entity Type","Country","Crypto Asset",
+        "Planned USD","Invested/Cost USD",
+        "Funding Method","Status","Timeline",
+        "Data Source","Date Source","Comments"
+    ]
+    for c in needed:
+        if c not in df.columns:
+            df[c] = np.nan
+
+    df = df[needed].copy()
+
+    # Clean numerics (allow "N/A" etc.)
+    def _to_float(s):
+        s = (str(s) if pd.notna(s) else "").strip()
+        if s == "" or s.lower() in {"n/a","na","none","-"}:
+            return np.nan
+        # Handle simple thousand/decimal variations
+        s = s.replace(",", "").replace(" ", "")
+        try:
+            return float(s)
+        except Exception:
+            return np.nan
+
+    df["Planned USD"] = df["Planned USD"].map(_to_float)
+    df["Invested/Cost USD"] = df["Invested/Cost USD"].map(_to_float)
+
+    # Tidy strings
+    for c in ["Entity Name","Ticker","Entity Type","Country","Crypto Asset",
+              "Funding Method","Status","Timeline",
+              "Data Source","Date Source","Comments"]:
+        df[c] = df[c].astype(str).str.strip()
+
+    # Keep as-is; we’ll filter in the section
     return df
