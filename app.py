@@ -1,4 +1,14 @@
+import warnings, logging
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+logging.getLogger("streamlit").setLevel(logging.ERROR)
+logging.getLogger("py.warnings").setLevel(logging.ERROR)
+
 import streamlit as st
+
+import plotly
+
 from modules import ui
 from modules.data_loader import get_prices, load_units, attach_usd_values, load_historic_data, load_planned_data
 from modules.filters import _init_global_filters, _opts
