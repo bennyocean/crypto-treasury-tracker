@@ -1,5 +1,6 @@
 from datetime import datetime
 import streamlit as st
+from modules.emojis import country_emoji_map
 
 def _pretty_usd(x):
     if x is None or (isinstance(x, float) and x != x):
@@ -107,6 +108,8 @@ def _table_pdf_bytes(df, logo_map, title="Treasury ranking list"):
         ("TTMCR",           0.06),
     ]
 
+
+
     col_w = [round(avail_w * r, 2) for _, r in cols]
     col_x = [pdf.l_margin]
     for w in col_w[:-1]:
@@ -135,7 +138,7 @@ def _table_pdf_bytes(df, logo_map, title="Treasury ranking list"):
     type_palette = {"Public Company": (123, 197, 237), # blue 
                         "Private Company": (232, 118, 226), # rose 
                         "DAO": (237, 247, 94), # amber 
-                        "Foundation": (34, 197, 94), # green 
+                        "Non-Profit Organization": (34, 197, 94), # green 
                         "Government": (245, 184, 122), # slate 
                         "Other": (250, 250, 250), # white
                         }
@@ -239,10 +242,11 @@ def _table_pdf_bytes(df, logo_map, title="Treasury ranking list"):
         pdf.set_xy(col_x[0], y)
         pdf.cell(col_w[0], row_h, str(rank), border=1, align="L")
 
-        # Entity Name
+        # Entity (with emoji already in df["Entity"])
         pdf.set_xy(col_x[1], y)
-        name = text_fit(row["Entity Name"], col_w[1])
-        pdf.cell(col_w[1], row_h, name, border=1, align="L")
+        entity_txt = text_fit(row.get("Entity Name", ""), col_w[1])
+        pdf.cell(col_w[1], row_h, entity_txt, border=1, align="L")
+
 
         # Stock Ticker
         pdf.set_xy(col_x[2], y)
@@ -253,7 +257,7 @@ def _table_pdf_bytes(df, logo_map, title="Treasury ranking list"):
         pdf.set_xy(col_x[3], y)
         pdf.cell(col_w[3], row_h, "", border=1)
         draw_type_pill(col_x[3], y, col_w[3], row_h, str(row["Entity Type"]))
-
+       
         # Country
         pdf.set_xy(col_x[4], y)
         country = text_fit(row.get("Country", ""), col_w[4])
@@ -262,14 +266,15 @@ def _table_pdf_bytes(df, logo_map, title="Treasury ranking list"):
         # Asset (logo)
         pdf.set_xy(col_x[5], y)
         pdf.cell(col_w[5], row_h, "", border=1)
-        asset = str(row["Crypto Asset"])
+        asset = str(row.get("Crypto Asset", ""))
         if asset in logo_map and logo_map[asset]:
             b64 = logo_map[asset].split(",")[-1]
             img = io.BytesIO(base64.b64decode(b64))
             img_h = 5.2
-            x_img = col_x[5] + 2.2
+            x_img = col_x[5] + (col_w[5] - img_h) / 2.0  # center inside Asset column
             y_img = y + (row_h - img_h) / 2.0
             pdf.image(img, x=x_img, y=y_img, h=img_h)
+
 
         # Holdings
         pdf.set_xy(col_x[6], y)
@@ -290,11 +295,22 @@ def _table_pdf_bytes(df, logo_map, title="Treasury ranking list"):
         mc_txt = _pretty_usd(row.get("Market Cap", None))
         pdf.cell(col_w[9], row_h, mc_txt, border=1, align="R")
 
-        # mNAV (2dp, dash if NA)
+        # mNAV with color
         pdf.set_xy(col_x[10], y)
         _mn = row.get("mNAV", None)
-        mn_txt = "-" if (_mn is None or (isinstance(_mn, float) and _mn != _mn)) else f"{_mn:.2f}"
+        if _mn is None or (isinstance(_mn, float) and _mn != _mn):
+            mn_txt = "-"
+            pdf.set_text_color(255, 255, 255)  # white for dash
+        else:
+            mn_txt = f"{_mn:.2f}"
+            if _mn > 1:
+                pdf.set_text_color(67, 209, 160)   # NEUTRAL_POS green
+            elif _mn < 1:
+                pdf.set_text_color(249, 65, 68)    # NEUTRAL_NEG red
+            else:
+                pdf.set_text_color(255, 165, 0)    # orange for exactly 1
         pdf.cell(col_w[10], row_h, mn_txt, border=1, align="R")
+        pdf.set_text_color(255, 255, 255)  # reset
 
         # Premium (2dp %, dash if NA)
         pdf.set_xy(col_x[11], y)
