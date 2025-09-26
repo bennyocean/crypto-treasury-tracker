@@ -1,7 +1,9 @@
 import streamlit as st
 import base64, mimetypes
-from sections import overview, global_, historic, ranking, treasury_breakdown, about, concentration, valuation
-from modules.ui import render_header, render_subscribe_cta, render_support
+import time
+
+from sections import overview, global_, historic, ranking, treasury_breakdown, about, concentration, valuation, planned
+from modules.ui import render_header, render_subscribe_cta, render_support, show_global_loader
 from analytics import log_page_once
 
 
@@ -20,8 +22,9 @@ def render_sidebar():
     section = st.sidebar.radio("Explore The Tracker", 
                                [
                                     "Dashboard",
+                                    "Treasury Pipeline",
                                     "Global Map",
-                                    "Trends",
+                                    "Trends & History",
                                     "Top Holders",
                                     "Distribution",
                                     "Concentration",
@@ -107,17 +110,41 @@ def render_sidebar():
         "</p>", unsafe_allow_html=True
     )
 
+    # Track section changes
+    st.session_state.setdefault("current_section", None)
+    st.session_state.setdefault("active_dialog", None)            # dialog queue used by the Dashboard
+    st.session_state.setdefault("overview_editor_rev", 0)         # editor key rotator used by the Dashboard
+
+    prev_section = st.session_state["current_section"]
+    loader = None
+
+    if prev_section != section:
+        # We navigated to a new section
+        st.session_state["current_section"] = section
+
+        loader = show_global_loader(f"Loading {section}")
+
+        # If we just arrived on the Dashboard, clear any stale dialog queue
+        if section == "Dashboard":
+            st.session_state["active_dialog"] = None
+            # rotate the editor key so any lingering checkboxes are reset
+            st.session_state["overview_editor_rev"] += 1
+
     # render selected page & log info
 
     if section == "Dashboard":
         log_page_once("overview")
         overview.render_overview()
 
+    if section == "Treasury Pipeline":
+        log_page_once("planned")
+        planned.render_planned()
+
     if section == "Global Map":
         log_page_once("world_map")
         global_.render_global()
 
-    if section == "Trends":
+    if section == "Trends & History":
         log_page_once("history")
         historic.render_historic_holdings()
 
@@ -140,3 +167,6 @@ def render_sidebar():
     if section == "About":
         log_page_once("about")
         about.render_about()
+
+    if loader is not None:
+        loader.empty()
