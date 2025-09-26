@@ -76,7 +76,7 @@ def render_valuation_insights():
                 st.info("No data for the current selection.")
             else:
                 fig1 = charts.exposure_ladder_bar(df_ladder, top_n=int(top_n))
-                render_plotly(fig1, "exposure_ladder", width="stretch")
+                render_plotly(fig1, "exposure_ladder")
 
 
     with c2:
@@ -102,7 +102,7 @@ def render_valuation_insights():
                 st.info("No data for the current selection.")
             else:
                 fig3 = charts.mcap_decomposition_bar(df_dec, top_n=top_n2)
-                render_plotly(fig3, "mcap_decomposition", width="stretch")
+                render_plotly(fig3, "mcap_decomposition")
 
 
     # Optional weighted premium info
@@ -188,7 +188,7 @@ def render_valuation_insights():
                 top_n=int(top_n_mnav),
                 max_mnav=(float(max_cap) if cap_outliers else None),
             )
-            render_plotly(fig_mnav, "mnav_comparison", width="stretch")
+            render_plotly(fig_mnav, "mnav_comparison")
 
 
     def _shock_controls(df_filtered: pd.DataFrame):
@@ -246,7 +246,7 @@ def render_valuation_insights():
                 fig = charts.corporate_sensitivity_bar(df_sens, per_asset_shocks=cfg["overrides"], top_n=top_n)
             else:
                 fig = charts.corporate_sensitivity_bar(df_sens, shock_pct=cfg["uniform"], top_n=top_n)
-            render_plotly(fig, "corporate_price_sensitivity", width="stretch")
+            render_plotly(fig, "corporate_price_sensitivity")
 
         st.caption(
             "Method: ΔEquity ≈ Σ(Crypto-NAV × price shock) / Market Cap. "

@@ -147,24 +147,14 @@ def show_global_loader(msg="Loading data"):
     return placeholder
 
 
-def render_plotly(fig, filename: str, width: str = "stretch", scale: int = 3, fmt: str = "png", extra_config: dict | None = None):
-    """
-    Render a Plotly figure with consistent high-res download settings.
-    - fig: Plotly figure object
-    - filename: default filename for downloaded image
-    - scale: resolution multiplier (higher = sharper for PNG)
-    - fmt: "png" or "svg"
-    """
+def render_plotly(fig, filename: str, scale: int = 3, fmt: str = "png", extra_config: dict | None = None):
     config = {
         "displaylogo": False,
         "modeBarButtonsToAdd": ["toImage"],
-        "toImageButtonOptions": {
-            "format": fmt,
-            "filename": filename,
-            "scale": scale,
-        },
+        "toImageButtonOptions": {"format": fmt, "filename": filename, "scale": scale},
     }
     if extra_config:
         config.update(extra_config)
-        
-    st.plotly_chart(fig, width=width, config=config)
+
+    st.plotly_chart(fig, config=config)  # ← no width
+

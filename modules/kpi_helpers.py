@@ -327,7 +327,7 @@ def top_5_holders(df, asset="BTC", key_prefix="top5"):
         render_plotly(
             fig,
             filename=f"top_5_{asset.lower()}_holders",
-            width="stretch",
+            #width="stretch",
             extra_config={
                 "displaylogo": False,
                 "displayModeBar": False,
@@ -754,7 +754,7 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
             xanchor="center",
             yanchor="top",
         )
-        render_plotly(fig, filename=f"flows_{asset_pick or 'agg'}".lower(), width="stretch")
+        render_plotly(fig, filename=f"flows_{asset_pick or 'agg'}".lower())
 
         st.caption("Note: Decomposition uses **asset-level monthly aggregates**; it respects the *filters (assets + time)*. "
                    "Entity Type and Country filters are not applied unless history exists at that granularity.")
