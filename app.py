@@ -1,6 +1,6 @@
 import streamlit as st
 from modules import ui
-from modules.data_loader import get_prices, load_units, attach_usd_values, load_historic_data
+from modules.data_loader import get_prices, load_units, attach_usd_values, load_historic_data, load_planned_data
 from modules.filters import _init_global_filters, _opts
 from modules.sidebar_info import render_sidebar
 from analytics import init_analytics
@@ -45,6 +45,9 @@ if "initialized" not in st.session_state:
 
     # load historic data
     st.session_state["historic_df"] = load_historic_data()
+
+    # load planned / announced data
+    st.session_state["planned_df"] = load_planned_data()
 
     st.session_state["initialized"] = True
     loader.empty()
