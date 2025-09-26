@@ -294,7 +294,11 @@ def render_kpis(df):
             add_logo_and_pct(fig, 1, eth_b64, f"{eth_pct_supply:.2%}")
             add_logo_and_pct(fig, 2, sol_b64, f"{sol_pct_supply:.2%}")
 
-            st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+            st.plotly_chart(
+                fig,
+                config={"displayModeBar": False},
+                use_container_width=True  # replaces width="stretch"
+            )
 
 
 # Top 5 Holders Chart
