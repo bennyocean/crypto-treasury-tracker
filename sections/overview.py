@@ -2,13 +2,19 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import html
+from zoneinfo import ZoneInfo
+import pandas as pd
 
-from urllib.parse import quote_plus
+from urllib.parse import urlencode, quote_plus
 
 from modules.kpi_helpers import render_kpis
 from analytics import log_table_render
 from modules.ui import btc_b64, eth_b64, sol_b64, sui_b64, ltc_b64, xrp_b64, hype_b64
 from modules.pdf_helper import _table_pdf_bytes
+from modules.emojis import country_emoji_map
+from modules.data_loader import read_central_prices_from_sheet
+from modules.entity_dialog import show_entity_dialog
+
 
 # Supply column row-wise
 supply_caps = {
@@ -25,13 +31,14 @@ supply_caps = {
 TRUE_DAT_WHITELIST = {
     "BTC": {"Strategy Inc.", "Twenty One Capital (XXI)", "Bitcoin Standard Treasury Company", "Metaplanet Inc.", "ProCap Financial, Inc", "Capital B", "H100 Group", 
             "Bitcoin Treasury Corporation", "Treasury B.V.", "American Bitcoin Corp.", "Parataxis Holdings LLC", "Strive Asset Management", "ArcadiaB", "Cloud Ventures",
-            "Stacking Sats, Inc.", "Melanion Digital", "Sequans Communications S.A.", "Semler Scientific, Inc.", "Africa Bitcoin Corporation"}, 
-    "ETH": {"BitMine Immersion Technologies, Inc.", "SharpLink Gaming", "The Ether Machine", "ETHZilla Corporation", "FG Nexus", "GameSquare Holdings", "Centaurus Energy Inc."},
-    "SOL": {"Forward Industries, Inc.", "Upexi, Inc.", "DeFi Development Corp.", "Sharps Technology, Inc.", "Classover Holdings, Inc.", "Sol Strategies, Inc.", "Sol Treasury Corp."},
+            "Stacking Sats, Inc.", "Melanion Digital", "Sequans Communications S.A.", "Africa Bitcoin Corporation", "Empery Digital Inc.", "B HODL", "OranjeBTC"}, 
+    "ETH": {"BitMine Immersion Technologies, Inc.", "SharpLink Gaming", "The Ether Machine", "ETHZilla Corporation", "FG Nexus", "GameSquare Holdings", "Centaurus Energy Inc.", "Ethero"},
+    "SOL": {"Forward Industries, Inc.", "Upexi, Inc.", "DeFi Development Corp.", "Sharps Technology, Inc.", "Classover Holdings, Inc.", "Sol Strategies, Inc.", "Sol Treasury Corp.",
+            "SOL Global Investments Corp.", "Helius Medical Technologies, Inc.", "Lion Group Holding Ltd."},
     "LTC": {"Lite Strategy, Inc."},
     "XRP": set(),
-    "SUI": set(),
-    "HYPE": {"Hyperliquid Strategies Inc", "Hyperion DeFi, Inc."},
+    "SUI": {"Lion Group Holding Ltd."},
+    "HYPE": {"Hyperliquid Strategies Inc", "Hyperion DeFi, Inc.", "Lion Group Holding Ltd."},
 }
 
 
@@ -64,11 +71,17 @@ def _badge_svg_uri(text: str,
                    h: int = 18,
                    pad_x: int = 5,
                    radius: int = 7) -> str:
-    """Return a data:image/svg+xml;utf8 URI for a rounded, vector 'pill'."""
-    # rough text width estimate (keeps sizing stable without font metrics)
-    font_size = 12  # looks good for h≈18
+    """Return a data:image/svg+xml;base64 URI for a rounded, vector 'pill'."""
+    import base64, html
+    font_size = 12
     est_tw = max(12, int(len(text) * font_size * 0.60))
     w = est_tw + 2 * pad_x
+
+    def _best_text_on(bg_rgb):
+        r, g, b = [c/255.0 for c in bg_rgb]
+        def _lin(c): return c/12.92 if c <= 0.04045 else ((c+0.055)/1.055)**2.4
+        L = 0.2126*_lin(r) + 0.7152*_lin(g) + 0.0722*_lin(b)
+        return (255,255,255) if (1.05/(L+0.05) >= (L+0.05)/0.05) else (0,0,0)
 
     tr, tg, tb = _best_text_on(bg_rgb)
     r, g, b = bg_rgb
@@ -83,8 +96,12 @@ def _badge_svg_uri(text: str,
         f"font-size='{font_size}' font-weight='600'>{txt}</text>"
         f"</svg>"
     )
-    return "data:image/svg+xml;utf8," + svg
 
+    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{b64}"
+
+
+st.session_state.setdefault("active_dialog", None)
 
 def render_overview():
     df = st.session_state["data_df"]
@@ -167,14 +184,23 @@ def render_overview():
         else:
             table_search = table
 
-        len_table = table_search.shape[0]
+        len_table = int(table_search.shape[0])
 
+        # pick a default based on list type
         if list_choice == "DATCOs":
-            default_rows = len_table  # always show full set
-        elif list_choice == "All":
-            default_rows = min(100, len_table)
+            default_rows = len_table
         else:
-            default_rows = min(100, len_table)
+            default_rows = min(50, len_table)
+
+        # bounds: allow 0 when empty
+        min_rows = 0 if len_table == 0 else 1
+        max_rows = len_table
+
+        # sanitize any previously stored value so it doesn't violate new bounds
+        if "tbl_rows" in st.session_state:
+            cur = int(st.session_state["tbl_rows"])
+            if cur < min_rows or cur > max_rows:
+                st.session_state["tbl_rows"] = int(default_rows)
             
         with c2:
             if "ui_entity_type" not in st.session_state:
@@ -196,12 +222,17 @@ def render_overview():
             )
             st.session_state["flt_country"] = sel_co
 
-        total_rows = df.shape[0]
         with c4:
             row_count = st.number_input(
-                f"Adjust Rows (Max. {total_rows})",
-                1, max(1, len_table), default_rows,  # guard: max at least 1
-                help="Select number of rows to display, sorted by USD value. Some entities hold more than one crypto asset and are shown separately.",
+                f"Adjust Rows (Max. {max_rows})",
+                min_value=min_rows,
+                max_value=max_rows,
+                value=int(default_rows),   # safe even when 0
+                step=1,
+                help=(
+                    "Select number of rows to display, sorted by USD value. "
+                    "Some entities hold more than one crypto asset and are shown separately."
+                ),
                 key="tbl_rows",
             )
 
@@ -303,10 +334,60 @@ def render_overview():
         sub.index = sub.index + 1
         sub.index.name = "Rank"
 
+        # --- RANKS on the full dataset (not filtered) ---
+        df_all = st.session_state["data_df"].copy()
+
+        # Global rank by USD Value (desc)
+        _global_sorted = df_all.sort_values("USD Value", ascending=False).copy()
+        _global_sorted["__global_rank"] = np.arange(1, len(_global_sorted) + 1)
+
+        # Per-asset rank by USD Value (desc)
+        _asset_sorted = df_all.sort_values(["Crypto Asset", "USD Value"], ascending=[True, False]).copy()
+        _asset_sorted["__asset_rank"] = _asset_sorted.groupby("Crypto Asset").cumcount() + 1
+
+        # Lookup dicts by (Entity Name, Crypto Asset)
+        _global_rank_map = {
+            (r["Entity Name"], r["Crypto Asset"]): int(r["__global_rank"])
+            for _, r in _global_sorted[["Entity Name", "Crypto Asset", "__global_rank"]].iterrows()
+        }
+        _asset_rank_map = {
+            (r["Entity Name"], r["Crypto Asset"]): int(r["__asset_rank"])
+            for _, r in _asset_sorted[["Entity Name", "Crypto Asset", "__asset_rank"]].iterrows()
+        }
+
+        # --- Aggregate global rank by total Crypto-NAV across all assets ---
+        _df_agg = (
+            df_all.groupby("Entity Name", as_index=False)["USD Value"]
+                .sum()
+                .sort_values("USD Value", ascending=False)
+                .reset_index(drop=True)
+        )
+        _df_agg["__agg_global_rank"] = np.arange(1, len(_df_agg) + 1)
+        _agg_global_rank_map = dict(zip(_df_agg["Entity Name"], _df_agg["__agg_global_rank"]))
+
         display = sub.copy()
 
+        def _details_url(row):
+            qp = {"entity": row["Entity Name"], "asset": row["Crypto Asset"]}
+            return "?" + urlencode(qp, quote_via=quote_plus)
+
+        display["Open"] = display.apply(_details_url, axis=1)
+
+        # Map country column to emoji
+        flag_series = (
+            display["Country"]
+            .astype("string")
+            .map(lambda c: country_emoji_map.get(c, "🏳️"))
+        )
+
+        # Prepend flag to Entity Name
+        display["Entity"] = flag_series.fillna("🏳️") + " " + display["Entity Name"].astype("string")
+
+        #Replace Country column for display with the emoji
+        #display["Country"] = flag_series
+
         # show dashes for missing values
-        display["Ticker"] = display["Ticker"].replace({"": "-"}).astype("string").fillna("-")
+        display["Ticker"] = (display["Ticker"].replace({"": "-"}).astype("string").fillna("-"))
 
         # mark rows with no market cap or no ticker for display-only fallbacks
         _no_metrics = display["Market Cap"].isna() | display["Ticker"].isna()
@@ -325,34 +406,46 @@ def render_overview():
             "LTC": f"data:image/png;base64,{ltc_b64}",
             "HYPE": f"data:image/png;base64,{hype_b64}",
         }
-        display["Crypto Asset"] = display["Crypto Asset"].map(lambda a: logo_map.get(a, ""))
+        display["Token"] = display["Crypto Asset"].map(lambda a: logo_map.get(a, ""))
 
         display["Market Cap"] = display["Market Cap"].map(pretty_usd)
         display["USD Value"] = display["USD Value"].map(pretty_usd)
+        # Add a per-row Open button column
 
         display = display[[
-            "Entity Name", "Ticker", "Entity Type", "Country",                      # Meta data
-            "Crypto Asset", "Holdings (Unit)", "% of Supply", "USD Value",                # Crypto data
-            "Market Cap", "mNAV_disp", "Premium_disp", "TTMCR_disp"                 # Market data
+            "Entity", "Ticker", "Entity Type",                                          # Meta data
+            "Token", "Crypto Asset", "Holdings (Unit)", "% of Supply", "USD Value",              # Crypto data
+            "Market Cap", "mNAV_disp", "Premium_disp", "TTMCR_disp"               # Market data
         ]]
-
 
         _type_palette = {"Public Company": (123, 197, 237), # blue 
                         "Private Company": (232, 118, 226), # rose 
                         "DAO": (237, 247, 94), # amber 
-                        "Foundation": (34, 197, 94), # green 
+                        "Non-Profit Organization": (34, 197, 94), # green 
                         "Government": (245, 184, 122), # slate 
                         "Other": (250, 250, 250), # white
                         }
 
         _badge_map = {k: _badge_svg_uri(k, v, h=28) for k, v in _type_palette.items()}
 
-        display["Entity Type"] = display["Entity Type"].map(
-            lambda t: _badge_map.get(t, _badge_map["Other"])
-        )
+        display["Entity Type"] = display["Entity Type"].map(lambda t: _badge_map.get(t, _badge_map["Other"]))
 
-        rows = min(row_count, len(display))
-        height = _df_auto_height(rows)  # no vertical scrollbar for selected rows
+        NEUTRAL_POS = "#43d1a0"
+        NEUTRAL_NEG = "#f94144"
+
+        def color_mnav(val):
+            """Color mNAV based on threshold."""
+            try:
+                v = float(val)
+            except (ValueError, TypeError):
+                return ""
+            if v > 1:
+                return f"color: {NEUTRAL_POS}; font-weight: bold;"
+            elif v < 1:
+                return f"color: {NEUTRAL_NEG}; font-weight: bold;"
+
+        # Apply styling to the *numeric* mNAV column
+        # styled_display = display.style.map(color_mnav, subset=["mNAV_disp"])
 
         st.markdown(
             """
@@ -369,32 +462,212 @@ def render_overview():
             """,
             unsafe_allow_html=True
         )
-        st.dataframe(
+
+        # --- Data editor (momentary 'Open' checkbox) ---
+        rows = min(row_count, len(display))
+        height = _df_auto_height(rows)
+
+        # Always create/overwrite the 'Open' column (so the checkbox never persists across runs)
+        display = display.copy()
+        display["Open"] = False
+
+        # Editor key that we can rotate to clear sticky selections
+        rev = st.session_state.get("overview_editor_rev", 0)
+
+        edited = st.data_editor(
             display,
             width="stretch",
             height=height,
+            hide_index=False,
+            disabled=[c for c in display.columns if c != "Open"],  # read-only except checkbox
             column_config={
-                "Crypto Asset": st.column_config.ImageColumn("Crypto Asset", width="small"),
-                #"Market Cap": st.column_config.NumberColumn("Market Cap", format="$%d"),
+                "Token": st.column_config.ImageColumn("Token"),
+                "Crypto Asset": st.column_config.TextColumn("Symbol"),
                 "Entity Type": st.column_config.ImageColumn("Entity Type", width="medium"),
                 "Holdings (Unit)": st.column_config.NumberColumn("Holdings", format="%d"),
                 "% of Supply": st.column_config.ProgressColumn("% of Supply", min_value=0, max_value=100, format="%.2f%%"),
-                #"USD Value": st.column_config.NumberColumn("USD Value", format="$%d"),
                 "Market Cap": st.column_config.TextColumn("Market Cap", width="small"),
                 "USD Value": st.column_config.TextColumn("Crypto-NAV", width="small"),
-                "mNAV_disp":    st.column_config.TextColumn("mNAV", width="small"),
+                "mNAV_disp": st.column_config.TextColumn("mNAV", width="small"),
                 "Premium_disp": st.column_config.TextColumn("Premium", width="small"),
-                "TTMCR_disp":   st.column_config.TextColumn("TTMCR", width="small"),
+                "TTMCR_disp": st.column_config.TextColumn("TTMCR", width="small"),
+                "Open": st.column_config.CheckboxColumn("Details",help="Click to open details for this entity.",default=False,width="small",
+                ),
             },
+            key=f"overview_editor_{rev}",
         )
+
+
+        # --- Detect which row was opened (queue the dialog for the NEXT run) ---
+        try:
+            clicked_rows = [int(i) for i, v in edited["Open"].items() if bool(v)]
+        except Exception:
+            clicked_rows = []
+
+        if clicked_rows:
+            ridx = clicked_rows[-1]  # last-opened wins
+            if ridx in sub.index:
+                row = sub.loc[ridx]
+                # Queue the dialog payload (minimal identifiers are fine)
+                # Build the ordered key list for the current visible table
+                ordered_keys = [(sub.loc[i, "Entity Name"], sub.loc[i, "Crypto Asset"]) for i in sub.index]
+
+                # Find the index of the clicked pair in that ordered list
+                clicked_key = (row.get("Entity Name", "-"), row.get("Crypto Asset", "-"))
+                try:
+                    clicked_idx = ordered_keys.index(clicked_key)
+                except ValueError:
+                    clicked_idx = 0  # fallback
+
+                # Queue dialog payload with nav state
+                st.session_state["active_dialog"] = {
+                    "list_keys": ordered_keys,   # list of (entity, asset) pairs in current view order
+                    "idx": clicked_idx,          # which one is active
+                }
+
+                # Rotate the editor key (clears checkboxes) and rerun
+                st.session_state["overview_editor_rev"] = st.session_state.get("overview_editor_rev", 0) + 1
+                st.rerun(scope="app")
+
+
+        # --- If a dialog is queued, render it now (checkboxes are already cleared) ---
+        ad = st.session_state.get("active_dialog")
+        if ad and isinstance(ad.get("list_keys"), list):
+            lk  = ad["list_keys"]
+            idx = int(ad.get("idx", 0))
+            if 0 <= idx < len(lk):
+                name_key, asset_key = lk[idx]
+                sel = sub[(sub["Entity Name"] == name_key) & (sub["Crypto Asset"] == asset_key)]
+                if sel.empty:
+                    # if current filters hid the exact asset row, try by entity name only
+                    sel = sub[sub["Entity Name"] == name_key]
+
+                if not sel.empty:
+                    row = sel.sort_values("USD Value", ascending=False).iloc[0]
+
+                    # Pull fields (same as before)
+                    name    = row.get("Entity Name", "-")
+                    asset   = row.get("Crypto Asset", "-")
+                    ticker  = str(row.get("Ticker", "-") or "-")
+                    etype   = row.get("Entity Type", "-")
+                    country = row.get("Country", "-")
+                    flag    = country_emoji_map.get(str(country), "🏳️")
+
+                    # Build multi-asset rows for this entity
+                    df_all = st.session_state["data_df"]
+                    rows_entity = df_all[df_all["Entity Name"] == name].copy()
+                    rows_entity = rows_entity[rows_entity["USD Value"] > 0]  # optional noise filter
+
+                    def _first_non_empty(series_like, default=""):
+                        """Return first non-empty/meaningful string from a Series-like, else default."""
+                        try:
+                            ser = pd.Series(series_like)
+                            ser = ser.replace([None, np.nan], "").astype(str).str.strip()
+                            bad = {"", "-", "nan", "none", "null"}
+                            for x in ser:
+                                if x and x.lower() not in bad:
+                                    return x
+                            return default
+                        except Exception:
+                            return default
+
+                    sector   = row.get("Sector", "")   or _first_non_empty(rows_entity.get("Sector",   pd.Series([])), "-")
+                    industry = row.get("Industry", "") or _first_non_empty(rows_entity.get("Industry", pd.Series([])), "-")
+                    about    = row.get("About", "")    or _first_non_empty(rows_entity.get("About",    pd.Series([])), "")
+                    website  = row.get("Website", "")  or _first_non_empty(rows_entity.get("Website",  pd.Series([])), "")
+
+                    # Ranks (use your precomputed maps)
+                    arank = _asset_rank_map.get((name, asset))
+                    grank = _global_rank_map.get((name, asset))
+
+                    # % of supply
+                    pct_supply = row.get("% of Supply", np.nan)
+                    if pd.isna(pct_supply):
+                        try:
+                            pct_supply = float(row["Holdings (Unit)"]) / float(supply_caps.get(asset, 1)) * 100.0
+                        except Exception:
+                            pct_supply = float("nan")
+
+                    usd_val = row.get("USD Value", float("nan"))
+                    mcap    = row.get("Market Cap", float("nan"))
+                    mnav    = row.get("mNAV", float("nan"))
+                    prem    = row.get("Premium", float("nan"))
+                    ttmcr   = row.get("TTMCR", float("nan"))
+
+                    etype_badge = _badge_svg_uri(str(etype), _type_palette.get(str(etype), (250, 250, 250)), h=22)
+                    is_datco = str(name).strip().lower() in {n.strip().lower() for n in TRUE_DAT_WHITELIST.get(asset, set())}
+
+                    prices_cg, _ = read_central_prices_from_sheet() or ({}, None)
+                    current_price     = prices_cg.get(asset, float("nan"))
+                    avg_cost_per_unit = row.get("Avg Cost", float("nan"))
+
+                    token_logo_map = logo_map 
+
+                    # Per-asset ranks for all assets this entity holds
+                    per_asset_ranks = {
+                        a: _asset_rank_map.get((name, a))
+                        for a in rows_entity["Crypto Asset"].dropna().astype(str).unique()
+                    }
+
+                    # Aggregate global rank (by total NAV across all assets)
+                    agg_grank = _agg_global_rank_map.get(name)
+
+                    show_entity_dialog(
+                        name=name,
+                        ticker=ticker,
+                        country=country,
+                        flag=flag,
+                        etype=etype,
+                        etype_badge_uri=etype_badge,
+                        asset=asset,
+                        arank=arank,
+                        grank=grank,
+
+                        # single-asset fallbacks
+                        holdings_unit=row.get("Holdings (Unit)", None),
+                        pct_supply=pct_supply,
+                        usd_value=usd_val,
+                        market_cap=mcap,
+                        mnav=mnav,
+                        premium=prem,
+                        ttmcr=ttmcr,
+
+                        sector=sector,
+                        industry=industry,
+                        is_datco=is_datco,
+                        about_text=about,
+                        website=website,
+
+                        current_price=current_price,
+                        avg_cost_per_unit=avg_cost_per_unit,
+
+                        rows_df=rows_entity,
+                        token_logo_map=token_logo_map,
+                        supply_caps=supply_caps,
+
+                        agg_global_rank=agg_grank,
+                        per_asset_ranks=per_asset_ranks,
+                        nav_list=lk,
+                        nav_index=idx,
+                        nav_session_key="active_dialog",
+                    )
+
+
+                else:
+                    # If filters changed and the entity is gone, clear the queued dialog
+                    st.session_state["active_dialog"] = None
+
+
 
         log_table_render("global_summary", "overview_table", len(display))
 
-        # PDF download of the filtered view
+
+        # --- PDF download (defined unconditionally) ---
         fname_asset = "all" if asset_choice == "All" else asset_choice.lower()
         pdf_bytes = _table_pdf_bytes(
             sub, logo_map, title=f"Crypto Treasury Top {len(sub)} Ranking - {fname_asset.upper()}"
         )
+
 
         if st.download_button(
             "Download List as PDF",
@@ -412,5 +685,22 @@ def render_overview():
             })
 
 
-    # Last update info
-    #st.caption("*Last treasury data base update: September 14, 2025*")
+        # Last update info
+        prices_cg, ts_utc = read_central_prices_from_sheet()
+
+        def _format_cet(ts):
+            if ts is None or pd.isna(ts):
+                return "n/a"
+            berlin = ZoneInfo("Europe/Berlin")
+            local = ts.astimezone(berlin)
+            return local.strftime("%d/%m/%Y, %H:%M:%S ") + local.tzname()
+
+        last_cg_str = _format_cet(ts_utc)
+
+        st.divider()
+
+        st.text("Data Sources")
+
+        st.caption(f"**CoinGecko API**: Crypto prices are updated hourly. Last update: {last_cg_str}")
+        st.caption("**Google Finance API**: Equity market caps are updated in real time (you may refresh the website to fetch latest data).")
+        st.caption("**Treasury holdings**: Updated daily on a best-effort basis and may not always be fully accurate.")
