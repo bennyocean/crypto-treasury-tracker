@@ -61,7 +61,9 @@ def render_kpis(df):
 
     with col1:
         with st.container(border=True):
-            st.metric("Total USD Value", f"${total_usd:,.0f}", help="Aggregate USD value of all tracked crypto assets across entities, based on live market pricing.")
+            st.metric("Total USD Value",
+                      f"${total_usd:,.0f}",
+                      help="Aggregate USD value of all tracked crypto assets across entities, based on live market pricing.")
 
             other_usd = max(total_usd - (btc_usd + eth_usd + sol_usd), 0)
 
