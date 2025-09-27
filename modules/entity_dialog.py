@@ -98,11 +98,11 @@ def show_entity_dialog(
     # --- Entity Type palette ---
     _type_palette = {
         "Public Company": (123, 197, 237),  # blue
-        "Private Company": (232, 118, 226), # rose
-        "DAO": (237, 247, 94),              # amber
-        "Foundation": (34, 197, 94),        # green
-        "Government": (245, 184, 122),      # slate
-        "Other": (250, 250, 250),           # white
+        "Private Company": (247, 89, 176), # rose
+        "DAO": (233, 242, 111),              # amber
+        "Non-Profit Organization": (128, 217, 183),        # green
+        "Government": (247, 198, 148),      # slate
+        "Other": (222, 217, 217),           # white
     }
 
     def _best_text_on_rgb(rgb):

@@ -38,13 +38,13 @@ def render_planned():
 
     # ---------- Filters ----------
     with st.container(border=True):
-        c1, c2, c3 = st.columns([1,1,1])
+        c1, c2, c3 = st.columns([2,1,1])
 
         asset_opts   = ["All"] + _opts(df["Crypto Asset"])
         country_opts = ["All"] + _opts(df["Country"])
         status_opts  = ["All"] + _opts(df["Status"])
 
-        sel_asset = c1.selectbox("Crypto Asset", options=asset_opts, index=0, key="pln_asset")
+        sel_asset = c1.radio("Select Asset", options=asset_opts, horizontal=True, key="pln_asset")
         sel_country = c2.selectbox("Country/Region", options=country_opts, index=0, key="pln_country")
         sel_status = c3.selectbox("Status", options=status_opts, index=0, key="pln_status")
 
@@ -74,7 +74,7 @@ def render_planned():
         
         with k2:
             with st.container(border=True):
-                st.metric("% Already Invested", f"{pct_invested:.1f}%")
+                st.metric("Already Invested (USD)", f"{_pretty_usd(total_invested)} ({pct_invested:.1f}%)")
                 
         with k3:
             with st.container(border=True):
@@ -138,18 +138,6 @@ def render_planned():
         disp = filt.copy()
         disp["Entity"] = flag_series.fillna("🏳️") + " " + disp["Entity Name"].astype("string")
 
-        _type_palette = {"Public Company": (123, 197, 237), # blue 
-                        "Private Company": (232, 118, 226), # rose 
-                        "DAO": (237, 247, 94), # amber 
-                        "Non-Profit Organization": (34, 197, 94), # green 
-                        "Government": (245, 184, 122), # slate 
-                        "Other": (250, 250, 250), # white
-                        }
-
-        _badge_map = {k: _badge_svg_uri(k, v, h=28) for k, v in _type_palette.items()}
-
-        disp["Entity Type"] = disp["Entity Type"].map(lambda t: _badge_map.get(t, _badge_map["Other"]))
-
         # Compact formats
         disp["Planned USD"] = disp["Planned USD"].map(_pretty_usd)
         #disp["Invested/Cost USD"] = disp["Invested/Cost USD"].map(_pretty_usd)
@@ -183,7 +171,18 @@ def render_planned():
             hide_index=False,
             column_config={
                 "#": st.column_config.TextColumn("#"),
-                "Entity Type": st.column_config.ImageColumn("Entity Type", width="medium"),
+                "Entity Type": st.column_config.MultiselectColumn(
+                    "Type",
+                    options=[
+                        "Public Company",
+                        "Private Company",
+                        "Government",
+                        "Non-Profit Organization",
+                        "DAO",
+                        "Other"
+                    ],
+                    color=["#7bc5ed", "#f759b0", "#f7c694", "#80d9b7",  "#eaf26f", "#ded9d9"],
+                ),
                 "Invested %": st.column_config.ProgressColumn("Progress", min_value=0, max_value=100, format="%.0f%%"),
                 "Data Source": st.column_config.LinkColumn("Data Source", help="Open source", width="small"),
                 "Date Source": st.column_config.DateColumn("Date", format="MMM DD, YYYY"),

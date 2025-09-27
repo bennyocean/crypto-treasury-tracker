@@ -134,14 +134,14 @@ def _table_pdf_bytes(df, logo_map, title="Treasury ranking list"):
         c_black = (L + 0.05) / 0.05
         return (255, 255, 255) if c_white >= c_black else (0, 0, 0)
 
-    # distinct, finance-friendly palette (no grey)
-    type_palette = {"Public Company": (123, 197, 237), # blue 
-                        "Private Company": (232, 118, 226), # rose 
-                        "DAO": (237, 247, 94), # amber 
-                        "Non-Profit Organization": (34, 197, 94), # green 
-                        "Government": (245, 184, 122), # slate 
-                        "Other": (250, 250, 250), # white
-                        }
+    type_palette = {
+        "Public Company": (123, 197, 237),
+        "Private Company": (247, 89, 176),
+        "DAO": (233, 242, 111),
+        "Non-Profit Organization": (128, 217, 183),
+        "Government": (247, 198, 148),
+        "Other": (222, 217, 217),
+    }
 
     # Rounded capsule for tracks/pills
     def _draw_capsule(x, y, w, h, fill_rgb):

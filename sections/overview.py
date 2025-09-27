@@ -41,6 +41,14 @@ TRUE_DAT_WHITELIST = {
     "HYPE": {"Hyperliquid Strategies Inc", "Hyperion DeFi, Inc.", "Lion Group Holding Ltd."},
 }
 
+TYPE_PALETTE = {
+    "Public Company": (123, 197, 237),  # blue
+    "Private Company": (247, 89, 176), # rose
+    "DAO": (233, 242, 111),              # amber
+    "Non-Profit Organization": (128, 217, 183),        # green
+    "Government": (247, 198, 148),      # slate
+    "Other": (222, 217, 217),           # white
+}
 
 def pretty_usd(x):
     if pd.isna(x):
@@ -140,7 +148,7 @@ def render_overview():
 
         with c1_kpi:
             list_choice = st.radio(
-                "Select List",
+                "Select Asset List",
                 options=options,
                 index=0,
                 horizontal=True,
@@ -409,18 +417,6 @@ def render_overview():
             "Market Cap", "mNAV_disp", "Premium_disp", "TTMCR_disp"               # Market data
         ]]
 
-        _type_palette = {"Public Company": (123, 197, 237), # blue 
-                        "Private Company": (232, 118, 226), # rose 
-                        "DAO": (237, 247, 94), # amber 
-                        "Non-Profit Organization": (34, 197, 94), # green 
-                        "Government": (245, 184, 122), # slate 
-                        "Other": (250, 250, 250), # white
-                        }
-
-        _badge_map = {k: _badge_svg_uri(k, v, h=28) for k, v in _type_palette.items()}
-
-        display["Entity Type"] = display["Entity Type"].map(lambda t: _badge_map.get(t, _badge_map["Other"]))
-
         NEUTRAL_POS = "#43d1a0"
         NEUTRAL_NEG = "#f94144"
 
@@ -474,7 +470,19 @@ def render_overview():
             column_config={
                 "Token": st.column_config.ImageColumn("Token"),
                 "Crypto Asset": st.column_config.TextColumn("Symbol"),
-                "Entity Type": st.column_config.ImageColumn("Entity Type", width="medium"),
+                "Entity Type": st.column_config.MultiselectColumn(
+                    "Type",
+                    options=[
+                        "Public Company",
+                        "Private Company",
+                        "Government",
+                        "Non-Profit Organization",
+                        "DAO",
+                        "Other"
+                    ],
+                    color=["#7bc5ed", "#f759b0", "#f7c694", "#80d9b7",  "#eaf26f", "#ded9d9"],
+                ),
+                #"Entity Type": st.column_config.ImageColumn("Entity Type", width="medium"),
                 "Holdings (Unit)": st.column_config.NumberColumn("Holdings", format="%d"),
                 "% of Supply": st.column_config.ProgressColumn("% of Supply", min_value=0, max_value=100, format="%.2f%%"),
                 "Market Cap": st.column_config.TextColumn("Market Cap", width="small"),
@@ -482,8 +490,7 @@ def render_overview():
                 "mNAV_disp": st.column_config.TextColumn("mNAV", width="small"),
                 "Premium_disp": st.column_config.TextColumn("Premium", width="small"),
                 "TTMCR_disp": st.column_config.TextColumn("TTMCR", width="small"),
-                "Open": st.column_config.CheckboxColumn("Details",help="Click to open details for this entity.",default=False,width="small",
-                ),
+                "Open": st.column_config.CheckboxColumn("Details",help="Click to open details for this entity.",default=False),
             },
             key=f"overview_editor_{rev}",
         )
@@ -585,7 +592,7 @@ def render_overview():
                     prem    = row.get("Premium", float("nan"))
                     ttmcr   = row.get("TTMCR", float("nan"))
 
-                    etype_badge = _badge_svg_uri(str(etype), _type_palette.get(str(etype), (250, 250, 250)), h=22)
+                    etype_badge = _badge_svg_uri(str(etype), TYPE_PALETTE.get(str(etype), (250, 250, 250)), h=22)
                     is_datco = str(name).strip().lower() in {n.strip().lower() for n in TRUE_DAT_WHITELIST.get(asset, set())}
 
                     prices_cg, _ = read_central_prices_from_sheet() or ({}, None)

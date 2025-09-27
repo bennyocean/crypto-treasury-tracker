@@ -9,13 +9,13 @@ from plotly.colors import qualitative
 ASSETS_ORDER = ["BTC","ETH","SOL","XRP","BNB","SUI","LTC", "HYPE"]  # stable order for stacking/colors
 COLORS = {"BTC":"#f7931a","ETH":"#6F6F6F","XRP":"#00a5df","BNB":"#f0b90b","SOL":"#dc1fff", "SUI":"#C0E6FF", "LTC":"#345D9D", "HYPE":"#97fce4"}
 TYPE_PALETTE = {
-    "Public Company": (123, 197, 237), # blue 
-    "Private Company": (232, 118, 226), # rose 
-    "DAO": (237, 247, 94), # amber 
-    "Non-Profit Organization": (34, 197, 94), # green 
-    "Government": (245, 184, 122), # slate 
-    "Other": (250, 250, 250), # white
-    }
+    "Public Company": (123, 197, 237),  # blue
+    "Private Company": (247, 89, 176), # rose
+    "DAO": (233, 242, 111),              # amber
+    "Non-Profit Organization": (128, 217, 183),        # green
+    "Government": (247, 198, 148),      # slate
+    "Other": (222, 217, 217),           # white
+}
 COLOR_MAP = {k: f"rgb({r},{g},{b})" for k, (r, g, b) in TYPE_PALETTE.items()}
 
 WATERMARK_TEXT="cryptotreasurytracker.xyz"
