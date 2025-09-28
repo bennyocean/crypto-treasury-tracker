@@ -2,7 +2,7 @@ import streamlit as st
 import base64, mimetypes
 import time
 
-from sections import overview, global_, historic, ranking, treasury_breakdown, about, concentration, valuation, planned, sector
+from sections import overview, global_, historic, ranking, treasury_breakdown, about, concentration, valuation, planned
 from modules.ui import render_header, render_subscribe_cta, render_support, show_global_loader
 from analytics import log_page_once
 
