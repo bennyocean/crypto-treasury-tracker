@@ -18,10 +18,13 @@ def render_global():
         # assets
         if "ui_assets_map" not in st.session_state:
             st.session_state["ui_assets_map"] = st.session_state.get("flt_assets", asset_opts)
-        sel_assets = c1.multiselect(
+        sel_assets = c1.pills(
             "Select Crypto Asset(s)",
             options=asset_opts,
-            key="ui_assets_map"     # no default on reruns
+            selection_mode="multi",
+            key="ui_assets_map",
+            label_visibility="visible",
+            width="stretch",
         )
         st.session_state["flt_assets"] = sel_assets
 

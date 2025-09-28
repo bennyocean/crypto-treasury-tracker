@@ -988,6 +988,7 @@ def _clip_name(s: str, n: int = 20) -> str:
     s = str(s).strip()
     return (s[: n - 1] + "…") if len(s) > n else s
 
+
 def treemap_composition(df, mode: str = "country_type"):
     """
     mode:
@@ -1500,3 +1501,4 @@ def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | Non
         xanchor="center", yanchor="bottom",
     )
     return fig
+

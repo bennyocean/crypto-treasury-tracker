@@ -38,13 +38,16 @@ def apply_filters(df):
         type_opts    = st.session_state["opt_entity_types"]
         country_opts = st.session_state["opt_countries"]
 
-        # assets
+        # --- Assets pills ---
         if "ui_assets" not in st.session_state:
             st.session_state["ui_assets"] = st.session_state.get("flt_assets", asset_opts)
-        sel_assets = col1.multiselect(
+        sel_assets = col1.pills(
             "Select Crypto Asset(s)",
             options=asset_opts,
-            key="ui_assets"
+            selection_mode="multi",
+            key="ui_assets",
+            label_visibility="visible",
+            width="stretch",
         )
         st.session_state["flt_assets"] = sel_assets
 
@@ -92,14 +95,18 @@ def apply_filters_historic(df: pd.DataFrame):
         if st.session_state.get("flt_time_range") not in {"All","3M","YTD","12M"}:
             st.session_state["flt_time_range"] = "All"
 
-        # --- Assets widget: initialize UI key once, then no default on reruns
+        # --- Asset pills ---
         asset_opts = _opts(df["Crypto Asset"])
         if "ui_assets_hist" not in st.session_state:
             st.session_state["ui_assets_hist"] = st.session_state.get("flt_assets", asset_opts)
-        sel_assets = col1.multiselect(
+
+        sel_assets = col1.pills(
             "Select Crypto Asset(s)",
             options=asset_opts,
-            key="ui_assets_hist"              # no default on reruns
+            selection_mode="multi",
+            key="ui_assets_hist",
+            label_visibility="visible",
+            width="stretch",
         )
         st.session_state["flt_assets"] = sel_assets
 

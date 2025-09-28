@@ -44,7 +44,7 @@ def render_planned():
         country_opts = ["All"] + _opts(df["Country"])
         status_opts  = ["All"] + _opts(df["Status"])
 
-        sel_asset = c1.radio("Select Asset", options=asset_opts, horizontal=True, key="pln_asset")
+        sel_asset = c1.pills("Select Asset", options=asset_opts, default= "All", key="pln_asset")
         sel_country = c2.selectbox("Country/Region", options=country_opts, index=0, key="pln_country")
         sel_status = c3.selectbox("Status", options=status_opts, index=0, key="pln_status")
 

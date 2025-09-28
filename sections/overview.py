@@ -148,14 +148,15 @@ def render_overview():
         options = ["All", "DATCOs"] + sorted(table["Crypto Asset"].dropna().unique().tolist())
 
         with c1_kpi:
-            list_choice = st.radio(
+            list_choice = st.pills(
                 "Select Asset List",
                 options=options,
-                index=0,
-                horizontal=True,
+                selection_mode="single",
+                default="All",
                 label_visibility="visible",
                 key="tbl_asset_filter",
             )
+
 
         # apply selection
         if list_choice == "DATCOs":

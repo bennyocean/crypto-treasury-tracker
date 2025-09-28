@@ -65,5 +65,6 @@ country_emoji_map = {
     "Panama": "🇵🇦",
     "Bahrain": "🇧🇭",
     "Jersey": "🇯🇪",
+    "Malaysia": "🇲🇾",
     "Other": "🏳️",
 }
