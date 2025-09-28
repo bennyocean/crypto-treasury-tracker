@@ -229,6 +229,35 @@ def attach_usd_values(df_units: pd.DataFrame, prices_input):
     
     return df
 
+
+def load_kpi_snapshots():
+    try:
+        info = st.secrets["gcp_service_account"]
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = Credentials.from_service_account_info(info, scopes=scope)
+        ss = gspread.authorize(creds).open("master_table_v01")
+        ws = ss.worksheet("kpi_snapshots")
+    except Exception:
+        return pd.DataFrame(columns=["date_utc","ts_utc","total_usd","total_entities"])
+
+    recs = ws.get_all_records()
+    df = pd.DataFrame(recs)
+    if df.empty:
+        return df
+
+    # types
+    df["ts_utc"] = pd.to_numeric(df["ts_utc"], errors="coerce")
+    df["total_usd"] = pd.to_numeric(df["total_usd"], errors="coerce")
+    df["total_entities"] = pd.to_numeric(df["total_entities"], errors="coerce")
+    # parse date
+    df["date_utc"] = pd.to_datetime(df["date_utc"], errors="coerce").dt.date
+    df = df.sort_values(["date_utc", "ts_utc"])
+    return df.reset_index(drop=True)
+
+
 # Function to get historic treasury data from master sheets
 @st.cache_data(ttl=900, show_spinner=False)
 def load_historic_data():

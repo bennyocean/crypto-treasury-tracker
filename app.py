@@ -10,7 +10,7 @@ import streamlit as st
 import plotly
 
 from modules import ui
-from modules.data_loader import get_prices, load_units, attach_usd_values, load_historic_data, load_planned_data
+from modules.data_loader import get_prices, load_units, attach_usd_values, load_historic_data, load_planned_data, load_kpi_snapshots
 from modules.filters import _init_global_filters, _opts
 from modules.sidebar_info import render_sidebar
 from analytics import init_analytics
@@ -36,6 +36,10 @@ if "initialized" not in st.session_state:
     st.session_state["data_df"] = attach_usd_values(units_df, st.session_state["prices"])
     _init_global_filters(st.session_state["data_df"])
     print(st.session_state["data_df"].head(10))
+
+    # load kpi snapshots
+    st.session_state["kpi_snapshots"] = load_kpi_snapshots()
+
     # canonical option lists used by ALL pages
     st.session_state["opt_assets"] = _opts(st.session_state["data_df"]["Crypto Asset"])
     st.session_state["opt_entity_types"] = ["All"] + _opts(st.session_state["data_df"]["Entity Type"])

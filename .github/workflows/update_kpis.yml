@@ -1,0 +1,33 @@
+name: Update KPI Snapshots Daily
+
+on:
+  schedule:
+    - cron: "55 23 * * *"   # run daily at 23:55 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: kpis-daily
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install --upgrade pip && pip install gspread google-auth pandas
+
+      - name: Write service account key to file
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > service_account.json
+          python -c "import json; json.load(open('service_account.json')); print('service_account.json OK')"
+          
+      - name: Snapshot KPIs to Google Sheet
+        run: python scripts/update_kpis_to_sheet.py

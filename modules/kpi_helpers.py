@@ -4,6 +4,8 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os, base64
+from datetime import date, timedelta
+
 from modules.charts import render_rankings
 from modules.ui import render_plotly
 
@@ -23,6 +25,7 @@ btc_b64 = load_base64_image(os.path.join(_ASSETS, "bitcoin-logo.png"))
 eth_b64 = load_base64_image(os.path.join(_ASSETS, "ethereum-logo.png"))
 sol_b64 = load_base64_image(os.path.join(_ASSETS, "solana-logo.png"))
 
+
 def format_change(value):
     if value > 0:
         return f"↗ {value:.1f}%", "green"
@@ -31,8 +34,35 @@ def format_change(value):
     else:
         return f"{value:.1f}%", "white"
 
+def _latest_snapshot_value(snaps: pd.DataFrame, field: str):
+    if snaps is None or snaps.empty or field not in snaps.columns:
+        return None
+    s = snaps[pd.notna(snaps[field])].sort_values(["date_utc","ts_utc"])
+    return None if s.empty else float(s.iloc[-1][field])
+
+def _snapshot_value_days_back(snaps: pd.DataFrame, field: str, days: int):
+    if snaps is None or snaps.empty or field not in snaps.columns:
+        return None
+    target = date.today() - timedelta(days=days)
+    s = snaps[pd.notna(snaps[field])].copy()
+    s = s.sort_values(["date_utc","ts_utc"])
+    # pick the last snapshot with date_utc <= target (nearest older or equal)
+    older = s[s["date_utc"] <= target]
+    row = older.iloc[-1] if not older.empty else s.iloc[0]  # fallback earliest
+    return float(row[field])
+
+def _pct_change(cur: float, base: float):
+    try:
+        cur = float(cur); base = float(base)
+        if not np.isfinite(cur) or not np.isfinite(base) or base <= 0:
+            return None
+        return (cur - base) / base * 100.0
+    except Exception:
+        return None
+
+
 # Summary KPIs
-def render_kpis(df):
+def render_kpis(df, snapshots_df=None):
     # Compute values
     df = df[(df['USD Value'] > 0) | (df['Holdings (Unit)'] > 0)]
 
@@ -55,15 +85,29 @@ def render_kpis(df):
     eth_units = eth_df["Holdings (Unit)"].sum()
     sol_units = sol_df["Holdings (Unit)"].sum()
 
+    # baselines
+    usd_base = _latest_snapshot_value(snapshots_df, "total_usd")            # 1d (latest stored)
+    ent_base = _snapshot_value_days_back(snapshots_df, "total_entities", 7)  # 7d ago (or nearest older)
+    print("usd base print: ", usd_base)
+
+    usd_pct = ((float(total_usd) - float(usd_base)) / float(usd_base) * 100.0) if usd_base and usd_base > 0 else None
+    ent_pct = ((float(total_entities) - float(ent_base)) / float(ent_base) * 100.0) if ent_base and ent_base > 0 else None
+
+    print("usd pct print: ", usd_pct)
+
+    usd_delta_label = f"{usd_pct:+.1f}%" if usd_pct is not None else "–"
+    ent_delta_label = f"{ent_pct:+.1f}%" if ent_pct is not None else "–"
+
+    
     # KPI layout
     col1, col2, col3 = st.columns(3)
-
 
     with col1:
         with st.container(border=True):
             st.metric("Total USD Value",
                       f"${total_usd:,.0f}",
-                      help="Aggregate USD value of all tracked crypto assets across entities, based on live market pricing.")
+                      delta=usd_delta_label,
+                      help="Aggregate USD value of all tracked crypto assets across entities, based on live market pricing (vs last day).")
 
             other_usd = max(total_usd - (btc_usd + eth_usd + sol_usd), 0)
 
@@ -107,14 +151,14 @@ def render_kpis(df):
 
             st.markdown("")
 
-
     # ---- Adoption (entities) with OTH residual ----
     with col2:
         with st.container(border=True):
             st.metric(
                 "Total Unique Entities",
                 f"{total_entities}",
-                help="Entities holding crypto assets directly, excluding ETFs and indirect vehicles. Note: some entities hold multiple assets and are counted once."
+                delta=ent_delta_label,
+                help="Entities holding crypto assets directly (vs last week), excluding ETFs and indirect vehicles. Note: some entities hold multiple assets and are counted once."
             )
 
             # sets for exclusive partition (BTC first, then ETH not in BTC, then SOL not in BTC/ETH, then Other = none of these)
@@ -280,8 +324,8 @@ def render_kpis(df):
 
             # layout reset
             fig.update_layout(
-                height=105,
-                margin=dict(t=0, b=0, l=0, r=0),
+                height=115,
+                margin=dict(t=10, b=0, l=0, r=0),
                 showlegend=False,
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
@@ -299,6 +343,8 @@ def render_kpis(df):
                 config={"displayModeBar": False},
                 use_container_width=True  # replaces width="stretch"
             )
+
+            st.markdown("")
 
 
 # Top 5 Holders Chart
