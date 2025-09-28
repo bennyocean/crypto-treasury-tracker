@@ -132,12 +132,12 @@ def read_central_prices_from_sheet() -> tuple[dict | None, pd.Timestamp | None]:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_prices():
-    # 1 central sheet
-    central = read_central_prices_from_sheet()  # returns keys like BTC ETH
-    if central and all(a in central for a in ASSETS):
-        return tuple(float(central[a]) for a in ASSETS)
+    # 1) central sheet
+    price_map, _ts = read_central_prices_from_sheet()  # (dict|None, ts|None)
+    if isinstance(price_map, dict) and all(a in price_map for a in ASSETS):
+        return tuple(float(price_map[a]) for a in ASSETS)
 
-    # 2 CoinGecko API then persist to local
+    # 2) CoinGecko API then persist to local
     try:
         ids = ",".join(COINGECKO_IDS[a] for a in ASSETS)
         r = requests.get(
@@ -153,7 +153,7 @@ def get_prices():
     except Exception:
         pass
 
-    # 3 local fallback
+    # 3) local fallback
     last = load_last_prices()
     return tuple(float(last.get(a, 0.0)) for a in ASSETS)
 
