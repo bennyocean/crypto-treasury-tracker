@@ -463,6 +463,11 @@ def render_overview():
         # Editor key that we can rotate to clear sticky selections
         rev = st.session_state.get("overview_editor_rev", 0)
 
+        # Entity type colored pills format
+        options_ent_type=["Public Company","Private Company","Government","Non-Profit Organization","DAO","Other"]
+        color_ent_type=["#7bc5ed", "#f759b0", "#f7c694", "#80d9b7",  "#eaf26f", "#ded9d9"]
+
+        # Render dashboard table
         edited = st.data_editor(
             display,
             width="stretch",
@@ -472,18 +477,7 @@ def render_overview():
             column_config={
                 "Token": st.column_config.ImageColumn("Token"),
                 "Crypto Asset": st.column_config.TextColumn("Symbol"),
-                "Entity Type": st.column_config.MultiselectColumn(
-                    "Type",
-                    options=[
-                        "Public Company",
-                        "Private Company",
-                        "Government",
-                        "Non-Profit Organization",
-                        "DAO",
-                        "Other"
-                    ],
-                    color=["#7bc5ed", "#f759b0", "#f7c694", "#80d9b7",  "#eaf26f", "#ded9d9"],
-                ),
+                "Entity Type": st.column_config.MultiselectColumn("Type", options=options_ent_type, color=color_ent_type),
                 "Holdings (Unit)": st.column_config.NumberColumn("Holdings", format="%d"),
                 "% of Supply": st.column_config.ProgressColumn("% of Supply", min_value=0, max_value=100, format="%.2f%%"),
                 "Market Cap": st.column_config.TextColumn("Market Cap", width="small"),

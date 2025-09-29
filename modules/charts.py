@@ -640,51 +640,94 @@ def holdings_by_entity_type_bar(df):
     return fig
 
 
-def entity_type_distribution_pie(df):
-    # Drop duplicates to count entities uniquely per type
-    entity_type_counts = df[['Entity Name', 'Entity Type']].drop_duplicates()
-    type_counts = entity_type_counts['Entity Type'].value_counts().reset_index()
-    type_counts.columns = ['Entity Type', 'Count']
-    type_counts["Entity Type"] = type_counts["Entity Type"].astype(str).str.strip()
+def _empty_pie(msg="No data"):
+    fig = px.pie(pd.DataFrame({"Entity Type": [], "Value": []}),
+                 values="Value", names="Entity Type", hole=0.65)
+    fig.add_annotation(text=msg, x=0.5, y=0.5, showarrow=False, font=dict(size=14))
+    fig.update_traces(textinfo="none")
+    fig.update_layout(showlegend=False)
+    return fig
+
+def entity_type_distribution_pie(df: pd.DataFrame, mode: str = "count"):
+    required_base = {"Entity Name", "Entity Type"}
+    if not required_base.issubset(df.columns):
+        return _empty_pie("Missing Entity Type")
+
     ORDER = list(TYPE_PALETTE.keys())
 
+    # sanitize source
+    d0 = (df[list(required_base | {"USD Value"} if "USD Value" in df.columns else required_base)]
+            .copy())
+    d0["Entity Type"] = d0["Entity Type"].astype(str).str.strip()
+    d0 = d0[d0["Entity Type"].ne("")]  # drop blank labels
+
+    if mode == "count":
+        # unique entities per type then value_counts with stable col names
+        s = (d0[["Entity Name", "Entity Type"]]
+                .drop_duplicates()["Entity Type"])
+        data = (s.value_counts(dropna=False)
+                  .rename_axis("Entity Type")
+                  .reset_index(name="Value"))
+    else:
+        # aggregate USD per type, unique entity-type pairs
+        if "USD Value" not in d0.columns:
+            return _empty_pie("No USD values")
+        dedup = d0[["Entity Name", "Entity Type", "USD Value"]].drop_duplicates(
+            subset=["Entity Name", "Entity Type"]
+        )
+        data = (dedup.groupby("Entity Type", as_index=False, observed=False)["USD Value"]
+                    .sum()
+                    .rename(columns={"USD Value": "Value"}))
+
+    # if nothing to plot
+    if data.empty or "Entity Type" not in data.columns or "Value" not in data.columns:
+        return _empty_pie()
+
+    # use only types we know the palette for (optional)
+    data["Entity Type"] = data["Entity Type"].astype(str)
+    cat_order = [t for t in ORDER if t in set(data["Entity Type"])]
+
     fig = px.pie(
-        type_counts,
-        values="Count",
+        data,
+        values="Value",
         names="Entity Type",
-        hole=0.65,
+        hole=0.6,
         color="Entity Type",
         color_discrete_map=COLOR_MAP,
-        category_orders={"Entity Type": ORDER},
+        category_orders={"Entity Type": cat_order} if cat_order else None,
     )
 
-    # Force all percentages to show with 1 decimal (even <1%)
+    if mode == "usd":
+        customdata = data["Value"].map(format_usd)
+    else:
+        customdata = None
+
     fig.update_traces(
-        texttemplate='%{percent:.1%}',
-        textfont=dict(size=16),
-        hovertemplate="<b>%{label}</b><br>Count: %{value}<extra></extra>"
+        texttemplate="%{percent:.1%}",
+        textfont=dict(size=18),
+        hovertemplate="<b>%{label}</b><br>"
+                    + ("Count: <b>%{value:,}</b>" if mode == "count"
+                        else "USD Value: <b>%{customdata}</b>")
+                    + "<extra></extra>",
+        customdata=customdata
     )
 
     fig.add_annotation(
         text=WATERMARK_TEXT,
-        x=0.5, y=0.5,                      # Center of chart
+        x=0.5, y=0.5,
         xref="paper", yref="paper",
         showarrow=False,
         font=dict(size=15, color="white"),
-        opacity=0.3,                       # Adjust for subtlety
+        opacity=0.3,
         xanchor="center",
         yanchor="middle",
     )
 
     fig.update_layout(
-        legend=dict(
-            orientation='h',
-            yanchor='bottom',
-            y=1.1,
-            xanchor='center',
-            x=0.5
-        ),
-        hoverlabel=dict(align='left')
+        legend=dict(orientation="h", yanchor="bottom", y=1.15, xanchor="center", x=0.5),
+        hoverlabel=dict(align="left"),
+        height=400,
+        margin=dict(t=0, b=10),  # ↓ reduce top and bottom margin
     )
 
     return fig
@@ -772,7 +815,7 @@ def top_countries_by_entity_count(df):
     )
 
     fig.update_layout(
-        height=394,
+        height=400,
         margin=dict(t=10, b=20),  # ↓ reduce top and bottom margin
         yaxis=dict(categoryorder='total ascending', title=None, tickfont=dict(size=14)),
         xaxis=dict(tickformat=',d', title=None),
@@ -862,7 +905,7 @@ def top_countries_by_usd_value(df):
     )
 
     fig.update_layout(
-        height=394,
+        height=400,
         margin=dict(t=10, b=20),  # ↓ reduce top and bottom margin
         yaxis=dict(categoryorder='total ascending', title=None),
         xaxis=dict(title=None, tickprefix = "$"),

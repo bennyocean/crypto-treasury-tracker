@@ -31,7 +31,7 @@ def render_entity_ranking():
 
         col_toggle, col_n, _ = st.columns([1, 1, 1])
 
-        metric = col_toggle.radio(" ", ["USD Value", "Unit Count"], index=0, horizontal=True, label_visibility="collapsed")
+        metric = col_toggle.segmented_control(label = "", options=["USD Value", "Unit Count"], default="USD Value", label_visibility="collapsed")
         top_n = col_n.number_input("Max. Entities Displayed", min_value=1, max_value=100, value=10, step=1)
 
         by = "USD" if metric == "USD Value" else "units"

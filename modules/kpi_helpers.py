@@ -76,9 +76,10 @@ def render_kpis(df, snapshots_df=None):
     eth_usd = eth_df["USD Value"].sum()
     sol_usd = sol_df["USD Value"].sum()
 
-    btc_entities = btc_df["Entity Name"].nunique()
-    eth_entities = eth_df["Entity Name"].nunique()
-    sol_entities = sol_df["Entity Name"].nunique()
+    btc_entities = btc_df["Entity Name"].shape[0]#.nunique()
+    eth_entities = eth_df["Entity Name"].shape[0]#.nunique()
+    sol_entities = sol_df["Entity Name"].shape[0]#.nunique()
+    total_entities_all = df["Entity Name"].shape[0]
     total_entities = df["Entity Name"].nunique()
 
     btc_units = btc_df["Holdings (Unit)"].sum()
@@ -92,6 +93,7 @@ def render_kpis(df, snapshots_df=None):
 
     usd_pct = ((float(total_usd) - float(usd_base)) / float(usd_base) * 100.0) if usd_base and usd_base > 0 else None
     ent_pct = ((float(total_entities) - float(ent_base)) / float(ent_base) * 100.0) if ent_base and ent_base > 0 else None
+    ent_delta_units = ((int(total_entities) - int(ent_base))) if ent_base and ent_base > 0 else None
 
     print("usd pct print: ", usd_pct)
 
@@ -106,7 +108,7 @@ def render_kpis(df, snapshots_df=None):
         with st.container(border=True):
             st.metric("Total USD Value",
                       f"${total_usd:,.0f}",
-                      delta=usd_delta_label,
+                      delta=f"{usd_delta_label} (24H)",
                       help="Aggregate USD value of all tracked crypto assets across entities, based on live market pricing (vs last day).")
 
             other_usd = max(total_usd - (btc_usd + eth_usd + sol_usd), 0)
@@ -157,7 +159,7 @@ def render_kpis(df, snapshots_df=None):
             st.metric(
                 "Total Unique Entities",
                 f"{total_entities}",
-                delta=ent_delta_label,
+                delta=f"{ent_delta_units} (WoW)",
                 help="Entities holding crypto assets directly (vs last week), excluding ETFs and indirect vehicles. Note: some entities hold multiple assets and are counted once."
             )
 
@@ -171,7 +173,8 @@ def render_kpis(df, snapshots_df=None):
             eth_excl = len(eth_set - btc_set)
             sol_excl = len(sol_set - btc_set - eth_set)
             oth_excl = max(total_entities - len(union_bes), 0)
-
+            other_excl_new = (total_entities_all - btc_entities - eth_entities - sol_entities)
+            
             pct_excl = {
                 "BTC": (btc_excl / total_entities) if total_entities else 0.0,
                 "ETH": (eth_excl / total_entities) if total_entities else 0.0,
@@ -180,7 +183,7 @@ def render_kpis(df, snapshots_df=None):
             }
 
             # display counts (keep your original per-asset counts; Other uses the disjoint count)
-            ENT_COUNTS = {"BTC": btc_entities, "ETH": eth_entities, "SOL": sol_entities, "Other": oth_excl}
+            ENT_COUNTS = {"BTC": btc_entities, "ETH": eth_entities, "SOL": sol_entities, "Other": other_excl_new}
 
             ENT_COLORS = {
                 "BTC": COLORS["BTC"],   # from your first KPI card
@@ -212,7 +215,7 @@ def render_kpis(df, snapshots_df=None):
                     </div>
                     <div style='display:flex;align-items:center;gap:6px;'>
                         <span style="display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid rgba(255,255,255,0.9);vertical-align:middle"></span>
-                        {oth_excl}
+                        {other_excl_new}
                     </div>
                 </div>
                 """,
@@ -359,11 +362,10 @@ def top_5_holders(df, asset="BTC", key_prefix="top5"):
             help=f"List of top 5 entities by {asset} treasury holdings shown in units or USD value."
         )
 
-        mode = st.radio(
+        mode = st.segmented_control(
             "Display mode",
-            ["USD Value", "Unit Count"],
-            index=1,
-            horizontal=True,
+            options=["USD Value", "Unit Count"],
+            default="Unit Count",
             label_visibility="collapsed",
             key=f"{key_prefix}_{asset}_mode"
         )
@@ -714,12 +716,12 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
         c1, c2 = st.columns([1, 1])
 
         # Single-asset toggle (aggregated vs one asset)
-        view_mode = c1.radio(
+        view_mode = c1.segmented_control(
             "View",
-            ["Aggregated (selected assets)", "Single asset"],
-            index=0,
-            horizontal=True,
-            help="Aggregate sums across selected assets or inspect a single asset."
+            options=["Aggregated (selected assets)", "Single asset"],
+            default="Aggregated (selected assets)",
+            help="Aggregate sums across selected assets or inspect a single asset.",
+            label_visibility="collapsed"
         )
         if view_mode == "Single asset":
             assets_in_scope = sorted(hist["Crypto Asset"].dropna().unique().tolist())

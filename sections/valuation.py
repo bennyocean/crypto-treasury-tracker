@@ -202,11 +202,10 @@ def render_valuation_insights():
             help="Restrict to verified Direct-Asset Treasury Companies."
         )        
 
-        mode = c1.radio(
+        mode = c1.segmented_control(
             "Shock mode",
-            ["Uniform (all selected assets)", "Per-asset"],
-            index=0,
-            horizontal=True,
+            options=["Uniform (all selected assets)", "Per-asset"],
+            default="Uniform (all selected assets)",
             help="Apply one %-change to all selected assets, or specify a separate %-change per crypto asset.",
         )
 

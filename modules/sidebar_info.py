@@ -30,8 +30,10 @@ def render_sidebar():
                                     "Concentration",
                                     "Valuation Insights",
                                     "About"
-                                ]
-                                , label_visibility = "visible")
+                                ],
+                                #default = "Dashboard",
+                                width = "stretch",
+                                label_visibility = "visible")
     
     st.sidebar.write(" ")
 

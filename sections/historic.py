@@ -36,7 +36,7 @@ def render_historic_holdings():
     with st.container(border=True):
         st.markdown("#### Historic Crypto Treasury Holdings Breakdown", help="Shows the historic development of aggregated and individual crypto asset holdings across all entities")
 
-        metric = st.radio("Display mode", ["USD Value", "Unit Count"], index=0, horizontal=True, label_visibility="collapsed")
+        metric = st.segmented_control("Display mode", options = ["USD Value", "Unit Count"], default="USD Value", label_visibility="collapsed")
         by = "USD" if metric == "USD Value" else "Holdings (Unit)"
 
         render_plotly(historic_chart(df_filtered, by=by), "historic_crypto_reserves")

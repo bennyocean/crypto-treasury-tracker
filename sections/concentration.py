@@ -68,11 +68,10 @@ def render_concentration():
         # controls row
         c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
 
-        group_by = c1.radio(
+        group_by = c1.segmented_control(
             "Group by",
             options=["Entity", "Country", "Entity Type"],
-            horizontal=True,
-            index=0,
+            default="Entity",
             help="Choose the population over which concentration is measured."
         )
 
@@ -81,11 +80,10 @@ def render_concentration():
         multi_asset = len(assets_sel) != 1  # True if 0 or >1 assets selected
 
         measure_opts = ["USD"] if multi_asset else ["USD", "Units"]
-        weight_mode = c2.radio(
+        weight_mode = c2.segmented_control(
             "Measure",
             options=measure_opts,
-            horizontal=True,
-            index=0,
+            default="USD",
             help="USD works for single/multi-asset; Units only makes sense for a single asset."
         )
 

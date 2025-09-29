@@ -53,16 +53,26 @@ def render_treasury_breakdown():
 
     with row1_col2:
         with st.container(border=True):
-            st.markdown("#### Entity Type Distribution", help="Share of entities by type. Note: Other includes protocols, L1/L2 networks, AI agents, and community-led projects.")
+            st.markdown("#### Entity Type Distribution",help="Share of entities by aggregated USD value or total count per entity type. Other includes protocols, L1/L2 networks, AI agents, and community-led projects")
 
-            render_plotly(charts.entity_type_distribution_pie(df_filtered), "entity_type_distribution")
+            mode_lbl = st.segmented_control(
+                "Metric",
+                options=["USD Value", "Entity Count"],
+                default="USD Value",
+                key="entity_pie_mode",
+                label_visibility="collapsed",
+            )
 
+            mode_arg = "count" if mode_lbl == "Entity Count" else "usd"
+
+            render_plotly(charts.entity_type_distribution_pie(df_filtered, mode=mode_arg),
+                        "entity_type_distribution")
 
     with row1_col3:
         with st.container(border=True):
             st.markdown("#### Top 5 Countries",help="Countries or regions with the largest reported crypto reserves, ranked by the selected metric. Note: 'Decentralized' refers to entities (e.g., DAOs) without a specific country affiliation.")
 
-            display_mode = st.radio("Display mode", ["Entity Count", "USD Value"], index=0, horizontal=True, label_visibility="collapsed")
+            display_mode = st.segmented_control("Display mode", options=["USD Value", "Entity Count"], default="USD Value", label_visibility="collapsed")
 
             if display_mode == "Entity Count":
                 fig_country = charts.top_countries_by_entity_count(df_filtered)
@@ -74,12 +84,12 @@ def render_treasury_breakdown():
     with st.container(border=True):
         st.markdown(
             "#### Current Crypto Treasury Distribution",
-            help="Switch between Country+Entity Type and Entity Type+Entity Name views; area size based on USD value."
+            help=" Shows area size based on USD value. Switch between entity- and regional-level views."
         )
-        layout_choice = st.radio(
+        layout_choice = st.segmented_control(
             "Treemap layout",
-            ["Entity Distribution", "Geographic Distribution"],
-            index=0, horizontal=True, label_visibility="collapsed"
+            options=["Entity Distribution", "Geographic Distribution"],
+            default="Entity Distribution", label_visibility="collapsed"
         )
         mode = "country_type" if "Geographic Distribution" in layout_choice else "type_entity"
         render_plotly(charts.treemap_composition(df_filtered, mode=mode), "treemap_composition")
