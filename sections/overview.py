@@ -196,13 +196,20 @@ def render_overview():
             table_search = table
 
         len_table = int(table_search.shape[0])
-        default_rows = (len_table if list_choice == "DATCOs" else min(50, len_table))
+        default_rows = min(50, len_table)      # max 50 oder weniger, wenn weniger vorhanden
         min_rows = 0 if len_table == 0 else 1
         max_rows = len_table
 
-        # Determine a safe starting value WITHOUT writing session_state
-        prev = st.session_state.get("tbl_rows", None)
-        start_val = int(default_rows) if prev is None else max(min_rows, min(int(prev), max_rows))
+        # Prüfen, ob sich die Asset-Liste geändert hat
+        last_asset = st.session_state.get("tbl_last_asset")
+        if last_asset != list_choice:
+            start_val = default_rows           # neu initialisieren
+            st.session_state["tbl_last_asset"] = list_choice
+        else:
+            # User-Wert behalten, aber sicherstellen, dass er im gültigen Bereich bleibt
+            prev = st.session_state.get("tbl_rows", default_rows)
+            start_val = max(min_rows, min(int(prev), max_rows))
+
 
         with c2:
             if "ui_entity_type" not in st.session_state:
