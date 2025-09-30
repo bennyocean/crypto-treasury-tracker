@@ -325,7 +325,7 @@ def render_kpis(df, snapshots_df=None):
 
             # layout reset
             fig.update_layout(
-                height=115,
+                height=125,
                 margin=dict(t=10, b=0, l=0, r=0),
                 showlegend=False,
                 paper_bgcolor="rgba(0,0,0,0)",
@@ -345,7 +345,7 @@ def render_kpis(df, snapshots_df=None):
                 use_container_width=True  # replaces width="stretch"
             )
 
-            st.markdown("")
+            #st.markdown("")
 
 
             # {btc_units:,.0f}
