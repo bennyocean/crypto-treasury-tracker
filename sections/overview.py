@@ -36,7 +36,7 @@ TRUE_DAT_WHITELIST = {
     "ETH": {"BitMine Immersion Technologies, Inc.", "SharpLink Gaming", "The Ether Machine", "ETHZilla Corporation", "FG Nexus", "GameSquare Holdings", "Centaurus Energy Inc.", "Ethero"},
     "SOL": {"Forward Industries, Inc.", "Upexi, Inc.", "DeFi Development Corp.", "Sharps Technology, Inc.", "Classover Holdings, Inc.", "Sol Strategies, Inc.", "Sol Treasury Corp.",
             "SOL Global Investments Corp.", "Helius Medical Technologies, Inc.", "Lion Group Holding Ltd."},
-    "LTC": {"Lite Strategy, Inc."},
+    "LTC": {"Lite Strategy, Inc." , "Luxxfolio Holdings Inc."},
     "XRP": set(),
     "SUI": {"Lion Group Holding Ltd."},
     "HYPE": {"Hyperliquid Strategies Inc", "Hyperion DeFi, Inc.", "Lion Group Holding Ltd."},
@@ -157,24 +157,25 @@ def render_overview():
                 key="tbl_asset_filter",
             )
 
+        # --- normalize fallback ---
+        list_choice = (list_choice or "All")
 
         # apply selection
         if list_choice == "DATCOs":
-            # union whitelist across assets present in the current table
             assets_present = sorted(table["Crypto Asset"].dropna().unique().tolist())
             whitelist_sets = [TRUE_DAT_WHITELIST.get(a, set()) for a in assets_present]
             active_whitelist = set().union(*whitelist_sets) if whitelist_sets else set()
-
             if "Entity Name" in table.columns:
                 names_upper = table["Entity Name"].astype(str)
-                table = table[names_upper.isin(active_whitelist)]  # <<< filter TABLE, not df!
-
+                table = table[names_upper.isin(active_whitelist)]
             asset_choice = "All"
-
         else:
             asset_choice = list_choice
             if asset_choice != "All":
                 table = table[table["Crypto Asset"] == asset_choice]
+
+        # safe downstream usage
+        fname_asset = "all" if asset_choice == "All" else asset_choice.lower()
 
 
         c1, c2, c3, c4 = st.columns(4)

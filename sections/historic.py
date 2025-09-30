@@ -31,6 +31,7 @@ def render_historic_holdings():
             fig_dom = dominance_area_chart_usd(df_filtered, current_df=st.session_state.get("data_df"))
             render_plotly(fig_dom, "dominance_usd_area")
 
+
     render_flow_decomposition(df_filtered)
 
     with st.container(border=True):

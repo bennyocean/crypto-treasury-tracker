@@ -131,7 +131,7 @@ def render_kpis(df, snapshots_df=None):
                         for a, val in [("BTC", btc_usd), ("ETH", eth_usd), ("SOL", sol_usd), ("Other", other_usd)]
                     )}
                 </div>
-                <div style='margin-top:8px;margin-bottom:5px;font-size:16px;color:#aaa;
+                <div style='margin-top:8px;margin-bottom:-5px;font-size:15px;color:#aaa;
                             display:flex;gap:12px;align-items:center;'>Dominance:
                     <div style='display:flex;align-items:center;gap:6px;'>
                         <img src="data:image/png;base64,{btc_b64}" width="16" height="16"> {usd_pct["BTC"]*100:.1f}%
@@ -202,7 +202,7 @@ def render_kpis(df, snapshots_df=None):
                         for k in ["BTC","ETH","SOL","Other"]
                     )}
                 </div>
-                <div style='margin-top:8px;margin-bottom:5px;font-size:16px;color:#aaa;
+                <div style='margin-top:8px;margin-bottom:16px;font-size:15px;color:#aaa;
                             display:flex;gap:12px;align-items:center;'>Adoption:
                     <div style='display:flex;align-items:center;gap:6px;'>
                         <img src="data:image/png;base64,{btc_b64}" width="16" height="16"> {btc_entities}
@@ -222,9 +222,7 @@ def render_kpis(df, snapshots_df=None):
                 unsafe_allow_html=True
             )
 
-            st.markdown("")
-
-
+            #st.markdown("")
 
 
     with col3:
@@ -348,6 +346,9 @@ def render_kpis(df, snapshots_df=None):
             )
 
             st.markdown("")
+
+
+            # {btc_units:,.0f}
 
 
 # Top 5 Holders Chart
@@ -725,7 +726,7 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
         )
         if view_mode == "Single asset":
             assets_in_scope = sorted(hist["Crypto Asset"].dropna().unique().tolist())
-            asset_pick = c2.selectbox("Asset", assets_in_scope, index=0)
+            asset_pick = c2.pills("Asset", assets_in_scope, default=["BTC"])
         else:
             asset_pick = None
 
