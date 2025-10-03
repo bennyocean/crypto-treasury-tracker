@@ -2,13 +2,16 @@ import streamlit as st
 
 
 def render_about():
+
+    st.title("About")
     
     # Box 1: Project Overview
-    with st.container(border=True):
+    with st.container(border=False):
+
+        st.subheader("First Multi-Asset Crypto Treasury Tracker")
+
         st.markdown(
-            """
-            <h4 style="margin-top: 0;">First Multi-Asset Crypto Treasury Tracker</h4>
-            
+            """            
             <p>Crypto reserves held by public, private, and sovereign entities are increasingly shaping digital asset market structure and institutional narratives. Yet existing tools remain fragmented—most cover only Bitcoin or a narrow subset.</p>
 
             <p>The <strong>Crypto Treasury Tracker (CTT)</strong> brings transparency to digital asset treasuries (DATs). It benchmarks <strong>all</strong> DATs built by public & private companies, DAOs, non-profit organizations, and sovereigns.</p>
@@ -21,11 +24,12 @@ def render_about():
         )
 
     # Box 2: Data Sources & Update Logic
-    with st.container(border=True):
+    with st.container(border=False):
+
+        st.subheader("Data Sources")
+
         st.markdown(
             """
-            <h5 style="margin-top: 0;">Data Sources</h5>
-
             <ul>
                 <li>Live crypto price feeds via <a href="https://docs.coingecko.com/reference/simple-price" target="_blank">CoinGecko API</a>, automatically refreshed every hour</li>
                 <li>Treasury data is updated weekly and based on external sources such as <a href="https://bitcointreasuries.net/" target="_blank">bitcointreasuries.net</a>, <a href="https://www.strategicethreserve.xyz/?ref=bankless.ghost.io" target="_blank">strategicethreserve.xyz</a>, corporate filings, and verified press releases</li>
@@ -37,12 +41,14 @@ def render_about():
         )
 
     # Box 3: Upcoming Features
-    with st.container(border=True):
+    with st.container(border=False):
+
+        st.subheader("Upcoming Features")
+
         st.markdown(
             """
-            <h5 style="margin-top: 0;">Planned Features</h4>
             <ul>
-                <li>More detailled data: sector, purpose, historic purchases, funding vehicles, and more</li>
+                <li>More details: purpose, historic data, funding vehicles, and more</li>
                 <li>Inclusion of new crypto assets, spot digital asset ETFs, and DeFi/smart contract-based treasuries</li>
                 <li>News and treasury announcements to track strategic moves in real time</li>
             </ul>
@@ -52,11 +58,12 @@ def render_about():
         )
 
     # Box 4: Support, Attribution & Contact
-    with st.container(border=True):
+    with st.container(border=False):
+
+        st.subheader("Support & Attribution")
+
         st.markdown(
             """
-            <h5 style="margin-top: 0;">Support & Attribution</h4>
-
             <p>Your support helps keep the Tracker running, cover server costs, and fund ongoing updates.</p>
             <ul style="margin-top: 0; font-size: 0.9rem;">
               <li>BTC: bc1pujcv929agye4w7fmppkt94rnxf6zfv3c7zpc25lurv7rdtupprrsxzs5g6</li>
@@ -66,21 +73,28 @@ def render_about():
             </ul>
 
             When using data, charts, or signals from the <strong>Crypto Treasury Tracker</strong>, please cite as follows:<br>
-            Crypto Treasury Tracker by Benjamin Schellinger, PhD (2025), url: https://crypto-treasury-tracker.streamlit.app</br>
+            >Crypto Treasury Tracker by Benjamin Schellinger, PhD (2025), url: https://cryptotreasurytracker.xyz</br>
             </p>
-
-            <p><strong>Feedback or collaboration?</strong> Connect via <a href="https://www.linkedin.com/in/benjaminschellinger/" target="_blank">LinkedIn</a>.</p>
             </div>
             """,
             unsafe_allow_html=True
         )
 
+    st.subheader("Feedback or collaboration?")
+    st.markdown(
+        """
+        <p>Connect via <a href="https://www.linkedin.com/in/benjaminschellinger/" target="_blank">LinkedIn</a> or <a href="https://x.com/CTTbyBen" target="_blank">X</a>.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     # Box 5: Blog
-    with st.container(border=True):
+    with st.container(border=False):
+
+        st.subheader("Crypto Treasury Newsletter & Articles")
+
         st.markdown(
             """
-            <h5 style="margin-top: 0;">Further Insights</h4>
-
             <p>For deeper insights on digital asset markets, view the <a href="https://digitalfinancebriefing.substack.com/ target="_blank">Digital Finance Briefing</a>.</p>
             </div>
             """,
@@ -88,13 +102,8 @@ def render_about():
         )
 
     # Box 6: Disclaimer
-    with st.container(border=True):
-        st.markdown(
-            """
-            <h5 style="margin-top: 0;">Disclaimer</h4>
+    st.divider()
 
-            <p>All information is for informational purposes only and does not constitute financial, investment, or trading advice. Always conduct your own research and consult with a qualified financial professional before making any investment decisions.</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    st.text("Disclaimer")
+
+    st.caption("All information is for informational purposes only and does not constitute financial, investment, or trading advice. Always conduct your own research and consult with a qualified financial professional before making any investment decisions.")

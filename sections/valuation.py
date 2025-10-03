@@ -8,6 +8,8 @@ from modules import charts
 from sections.overview import TRUE_DAT_WHITELIST
 
 def render_valuation_insights():
+    st.title("Crypto Treasury Valuation Insights")
+
     df = st.session_state["data_df"]
     df_filtered = apply_filters(df)
 
@@ -46,12 +48,14 @@ def render_valuation_insights():
     with col3:
         with st.container(border=True):
             st.metric("Portfolio Exposure (cap-weighted)", f"{exposure:.1f}%", help="Share of corporate market cap represented by crypto assets. Higher values indicate greater market sensitivity to crypto price movements.")
+    
+    st.markdown("")
 
     # Row of charts
     c1, c2 = st.columns([1,1])
     
     with c1:
-        with st.container(border=True):
+        with st.container(border=False):
             st.markdown("#### Exposure Ladder", help="Treasury as a % of Market Cap; higher value means more crypto-sensitive.")
             sub_c1, sub_c2 = st.columns([3,1])
 
@@ -80,7 +84,7 @@ def render_valuation_insights():
 
 
     with c2:
-        with st.container(border=True):
+        with st.container(border=False):
             st.markdown("#### Market Cap Decomposition", help="Stacked Market Cap split into Crypto-NAV and a residual Core Proxy.")
             
             sub_c3, sub_c4 = st.columns([3,1])
@@ -109,11 +113,11 @@ def render_valuation_insights():
     if np.isfinite(pw_prem):
         st.caption(f"Weighted Premium to MNAV (by Market Cap): **{pw_prem:.1f}%**")
 
+    st.divider()
 
     # --- mNAV comparison ---
-    with st.container(border=True):
+    with st.container(border=False):
         st.markdown("#### mNAV Benchmarking", help="Premium/discount vs the crypto treasury. 1× is parity; above 1× = premium, below 1× = discount.")
-
         # Controls row
         c0, c1, c2, c3 = st.columns([1,1,1,1])
         cap_outliers = c2.checkbox("Cap mNAV (exclude outliers)", value=False, help="Drop extreme mNAV to make comparisons readable.")
@@ -153,6 +157,7 @@ def render_valuation_insights():
                             .head(int(top_n_mnav)))
 
         sel = d_kpi["mNAV"].replace([np.inf, -np.inf], np.nan).dropna()
+        st.markdown("")
 
         # KPIs (Median / Mean / Share <1× / Max)
         k1, k2, k3, k4 = st.columns(4)
@@ -190,9 +195,11 @@ def render_valuation_insights():
             )
             render_plotly(fig_mnav, "mnav_comparison")
 
+    st.divider()
 
     def _shock_controls(df_filtered: pd.DataFrame):
         assets = sorted(df_filtered["Crypto Asset"].dropna().unique().tolist())
+        st.markdown("")
 
         c1, c2, c3, c4 = st.columns([1,1,1,0.5])
 
@@ -225,7 +232,7 @@ def render_valuation_insights():
                 ) / 100.0
             return {"uniform": None, "overrides": shocks}, top_n, datco_only
 
-    with st.container(border=True):
+    with st.container(border=False):
         st.markdown("#### Price Sensitivity to Crypto (NAV-Implied β)", help="Computes the Δ Market Cap (Equity) implied by crypto price shocks. Assumes 1:1 pass-through of Crypto-NAV changes; core business unchanged; not a historical beta.")
 
         cfg, top_n, datco_only = _shock_controls(df_filtered)

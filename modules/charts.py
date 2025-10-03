@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.colors import qualitative
+from modules.emojis import country_emoji_map
 
 
 ASSETS_ORDER = ["BTC","ETH","SOL","XRP","BNB","SUI","LTC", "HYPE"]  # stable order for stacking/colors
@@ -127,11 +128,11 @@ def render_world_map(df, asset_filter, type_filter, value_range_filter):
 
     # Prepare custom hover data columns
     grouped["Custom_Hover"] = (
-        "Total Reserves: " + grouped["Formatted_Total_USD"] +
-        "<br>Share of Global: " + grouped["Formatted_Share_Global"] +
-        "<br>Avg. Reserve per Entity: " + grouped["Formatted_Avg_Holdings"] +
-        "<br>Entities Reporting: " + grouped["Entity_Count"].astype(str) +
-        "<br><br><b>By Asset</b><br>" + grouped["PerAssetBreakdown"]
+        "Total Holdings: " + grouped["Formatted_Total_USD"] +
+        "<br>Global Share: " + grouped["Formatted_Share_Global"] +
+        "<br>Avg. USD per Holder: " + grouped["Formatted_Avg_Holdings"] +
+        "<br># of Holders Reporting: " + grouped["Entity_Count"].astype(str) +
+        "<br><br><b>Asset Breakdown:</b><br>" + grouped["PerAssetBreakdown"]
     )
 
     # Create choropleth
@@ -344,6 +345,8 @@ def historic_chart(df, by="USD"):
         margin=dict(t=50, b=20),
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
+        xaxis=dict(fixedrange=True),
+        yaxis=dict(fixedrange=True),
         xaxis_title=None,
         yaxis_title=None,
         legend_title_text=None,
@@ -433,7 +436,7 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
                 rangemode="tozero",
                 tickprefix="$",
                 showgrid=True,           # left axis provides the grid
-                zeroline=False
+                zeroline=False, fixedrange=True
             ),
             yaxis2=dict(
                 title="Total Units",
@@ -444,7 +447,7 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
                 zeroline=False,
                 showline=False,
                 tickprefix="",
-                linecolor="rgba(255,255,255,0.4)"
+                linecolor="rgba(255,255,255,0.4)", fixedrange=True
             ),
         )
 
@@ -474,17 +477,19 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
 
 
     fig.update_layout(
-        margin=dict(t=50, b=20, l=40, r=20),
+        margin=dict(t=50, b=0, l=40, r=20),
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
         xaxis_title=None, yaxis_title=None,
         legend_title_text=None,
+        xaxis=dict(fixedrange=True),
         yaxis=dict(
             title=None,
             rangemode="tozero",
             tickprefix="$",   # only multi-asset mode gets a dollar prefix on the left axis
             showgrid=True,
-            zeroline=False
+            zeroline=False,
+            fixedrange=True
         )
     )
     fig.update_xaxes(dtick="M1", tickformat="%b %Y")
@@ -530,13 +535,13 @@ def dominance_area_chart_usd(df_historic: pd.DataFrame, current_df: pd.DataFrame
 
     fig.update_traces(opacity=0.95)
     fig.update_layout(
-        margin=dict(t=50, b=20, l=40, r=20),
+        margin=dict(t=50, b=0, l=40, r=20),
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
         xaxis_title=None, yaxis_title=None, legend_title_text=None,
     )
-    fig.update_yaxes(rangemode="tozero", tickprefix="$")
-    fig.update_xaxes(dtick="M1", tickformat="%b %Y")
+    fig.update_yaxes(rangemode="tozero", tickprefix="$", fixedrange=True)
+    fig.update_xaxes(dtick="M1", tickformat="%b %Y", fixedrange=True)
     fig.add_annotation(
         text=WATERMARK_TEXT, x=0.5, y=0.5, xref="paper", yref="paper",
         showarrow=False, font=dict(size=30, color="white"), opacity=0.3,
@@ -628,8 +633,9 @@ def holdings_by_entity_type_bar(df):
             xanchor='center',
             x=0.5
         ),
+        xaxis=dict(fixedrange=True),
         yaxis=dict(
-            tickprefix="$"
+            tickprefix="$", fixedrange=True
         ),
         hoverlabel=dict(align='left'),
         xaxis_title=None,
@@ -745,7 +751,7 @@ def top_countries_by_entity_count(df):
     top_countries = (
         grouped.groupby('Country')['Entity Count']
         .sum()
-        .nlargest(5)
+        .nlargest(10)
         .index.tolist()
     )
 
@@ -763,6 +769,16 @@ def top_countries_by_entity_count(df):
     filtered = filtered.copy()
     filtered.loc[:, 'Custom Hover'] = filtered['Country'].map(country_breakdowns)
     filtered['Entity Type'] = filtered['Entity Type'].astype(str).str.strip()
+
+    # Map country column to emoji
+    flag_series = (
+        filtered["Country"]
+        .astype("string")
+        .map(lambda c: country_emoji_map.get(c, "🏳️"))
+    )
+
+    # Prepend flag to Entity Name
+    filtered["Country"] = flag_series.fillna("🏳️") + " " + filtered["Country"].astype("string")
 
     # Step 4: Create stacked bar chart
     fig = px.bar(
@@ -817,8 +833,8 @@ def top_countries_by_entity_count(df):
     fig.update_layout(
         height=400,
         margin=dict(t=10, b=20),  # ↓ reduce top and bottom margin
-        yaxis=dict(categoryorder='total ascending', title=None, tickfont=dict(size=14)),
-        xaxis=dict(tickformat=',d', title=None),
+        yaxis=dict(categoryorder='total ascending', title=None, tickfont=dict(size=14), fixedrange=True),
+        xaxis=dict(tickformat=',d', title=None, fixedrange=True),
         showlegend=False
     )
 
@@ -837,7 +853,7 @@ def top_countries_by_usd_value(df):
     top_countries = (
         grouped.groupby('Country')['USD Value']
         .sum()
-        .nlargest(5)
+        .nlargest(10)
         .index.tolist()
     )
 
@@ -853,6 +869,16 @@ def top_countries_by_usd_value(df):
 
     filtered['Custom Hover'] = filtered['Country'].map(country_breakdowns)
     filtered['Entity Type'] = filtered['Entity Type'].astype(str).str.strip()
+
+    # Map country column to emoji
+    flag_series = (
+        filtered["Country"]
+        .astype("string")
+        .map(lambda c: country_emoji_map.get(c, "🏳️"))
+    )
+
+    # Prepend flag to Entity Name
+    filtered["Country"] = flag_series.fillna("🏳️") + " " + filtered["Country"].astype("string")
 
     # Step 4: Create stacked bar chart
     fig = px.bar(
@@ -907,8 +933,8 @@ def top_countries_by_usd_value(df):
     fig.update_layout(
         height=400,
         margin=dict(t=10, b=20),  # ↓ reduce top and bottom margin
-        yaxis=dict(categoryorder='total ascending', title=None),
-        xaxis=dict(title=None, tickprefix = "$"),
+        yaxis=dict(categoryorder='total ascending', title=None, fixedrange=True),
+        xaxis=dict(title=None, tickprefix = "$", fixedrange=True),
         showlegend=False,
     )
 
@@ -1007,9 +1033,9 @@ def entity_ranking(df, by="USD", top_n=10):
 
     fig.update_layout(
         height=500,
-        xaxis=dict(title=None, tickfont=dict(size=12)),
+        xaxis=dict(title=None, tickfont=dict(size=12), fixedrange=True),
         yaxis=dict(title=None if by == "USD" else None,
-                   tickprefix="$" if by == "USD" else ""
+                   tickprefix="$" if by == "USD" else "", fixedrange=True
                    ),
         margin=dict(l=40, r=40, t=50, b=60),
         font=dict(size=12),
@@ -1133,6 +1159,15 @@ def treemap_composition(df, mode: str = "country_type"):
              .agg(USD_Value=("USD Value", "sum"),
                   Entities=("Entity Name", "nunique"))
         )
+        # Map country column to emoji
+        flag_series = (
+            grouped["Country"]
+            .astype("string")
+            .map(lambda c: country_emoji_map.get(c, "🏳️"))
+        )
+
+        # Prepend flag to Entity Name
+        grouped["Country"] = flag_series.fillna("🏳️") + " " + grouped["Country"].astype("string")
 
         fig = px.treemap(
             grouped,
@@ -1224,10 +1259,10 @@ def lorenz_curve_chart(p, L, asset: str | None = None):
         name="Equality", line=dict(dash="dash", width=1), hoverinfo="skip"
     ))
     fig.update_layout(
-        height=320,
+        height=350,
         margin=dict(l=40, r=20, t=10, b=30),
-        xaxis=dict(title="Cumulative share of groups", tickformat=".0%", range=[0,1]),
-        yaxis=dict(title="Cumulative share of weight", tickformat=".0%", range=[0,1]),
+        xaxis=dict(title="Cumulative share of groups", tickformat=".0%", range=[0,1], fixedrange=True),
+        yaxis=dict(title="Cumulative share of weight", tickformat=".0%", range=[0,1], fixedrange=True),
         showlegend=False,
         hoverlabel=dict(align="left")
     )
@@ -1304,9 +1339,9 @@ def exposure_ladder_bar(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
     ))
     fig.update_layout(
         height=max(400, 25 * len(snap) + 40),
-        margin=dict(l=100, r=20, t=60, b=10),
-        xaxis=dict(title="Crypto Treasury as % of Market Cap", ticksuffix="%",),
-        yaxis=dict(title=None),
+        margin=dict(l=100, r=20, t=60, b=0),
+        xaxis=dict(title="Crypto Treasury as % of Market Cap", ticksuffix="%", fixedrange=True),
+        yaxis=dict(title=None, fixedrange=True),
         showlegend=False,
         hoverlabel=dict(align="left"),
     )
@@ -1368,9 +1403,9 @@ def mcap_decomposition_bar(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
     fig.update_layout(
         barmode="stack",
         height=max(400, 25 * len(snap) + 40),
-        margin=dict(l=100, r=20, t=60, b=10),
-        xaxis=dict(title="Market Cap (stacked)"),
-        yaxis=dict(title=None),
+        margin=dict(l=100, r=20, t=60, b=0),
+        xaxis=dict(title="Market Cap (stacked)", fixedrange=True),
+        yaxis=dict(title=None, fixedrange=True),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
         hoverlabel=dict(align="left"),
     )
@@ -1406,6 +1441,68 @@ def _entity_snapshot_by_asset(df: pd.DataFrame) -> pd.DataFrame:
     g = g.dropna(subset=["MarketCap"])
     g = g[g["MarketCap"] > 0]
     return g
+
+
+def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | None = None) -> go.Figure:
+    """
+    Pick Top-N by CryptoNAV (largest treasuries), then DISPLAY sorted by mNAV (desc)
+    with a 1× guideline. Optional mNAV cap to drop outliers.
+    """
+    snap = _entity_snapshot(df).dropna(subset=["MarketCap"])
+    snap = snap[snap["MarketCap"] > 0].copy()
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        snap["mNAV"] = np.where(snap["CryptoNAV"] > 0, snap["MarketCap"] / snap["CryptoNAV"], np.nan)
+
+    # Optional outlier cap BEFORE picking Top-N
+    if max_mnav is not None:
+        snap = snap[snap["mNAV"] <= float(max_mnav)]
+
+    # 1) choose Top-N BY CryptoNAV
+    d = snap.dropna(subset=["mNAV"]).sort_values("CryptoNAV", ascending=False).head(top_n).copy()
+    if d.empty:
+        return go.Figure()
+
+    # 2) DISPLAY order: mNAV descending → left = largest, right = lowest
+    d = d.sort_values("mNAV", ascending=False)
+
+    colors   = np.where(d["mNAV"] >= 1.0, "#43d1a0", "#f04438")  # premium green / discount red
+    text_lbl = [f"{v:.2f}×" if np.isfinite(v) else "—" for v in d["mNAV"]]
+
+    ymax = float(np.nanmax(d["mNAV"]))
+    y_range = [0, ymax * 1.15] if np.isfinite(ymax) and ymax > 0 else None
+
+    fig = go.Figure(go.Bar(
+        x=d["Entity Name"],
+        y=d["mNAV"],
+        marker_color=colors,
+        text=text_lbl,
+        textposition="outside",
+        cliponaxis=False,
+        customdata=np.c_[d["MarketCap"], d["CryptoNAV"]],
+        hovertemplate="<b>%{x}</b><br>mNAV: %{y:.2f}×<br>Market Cap: %{customdata[0]:$,.0f}<br>Crypto-NAV: %{customdata[1]:$,.0f}<extra></extra>",
+    ))
+
+    fig.add_hline(y=1.0, line_width=1, line_dash="dash", line_color="#cbd5e1")
+
+    fig.update_layout(
+        height=500,
+        margin=dict(l=40, r=30, t=0, b=0),
+        xaxis=dict(title=None, tickangle=-35, automargin=True, fixedrange=True),
+        yaxis=dict(title="mNAV (×)", range=y_range, fixedrange=True),
+        showlegend=False,
+        hoverlabel=dict(align="left"),
+    )
+
+    # subtle watermark
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.45, xref="paper", yref="paper",
+        showarrow=False, font=dict(size=35, color="white"), opacity=0.3,
+        xanchor="center", yanchor="bottom",
+    )
+    return fig
+
 
 def corporate_sensitivity_bar(
     df: pd.DataFrame,
@@ -1468,9 +1565,9 @@ def corporate_sensitivity_bar(
     ))
     fig.update_layout(
         height=max(420, 24 * len(d) + 60),
-        margin=dict(l=120, r=50, t=50, b=10),
-        xaxis=dict(title="Implied Equity Move (%)", ticksuffix="%", zeroline=True),
-        yaxis=dict(title=None),
+        margin=dict(l=120, r=50, t=20, b=10),
+        xaxis=dict(title="Implied Equity Move (%)", ticksuffix="%", zeroline=True, fixedrange=True),
+        yaxis=dict(title=None, fixedrange=True),
         showlegend=False,
         hoverlabel=dict(align="left"),
     )
@@ -1483,65 +1580,3 @@ def corporate_sensitivity_bar(
     )
 
     return fig
-
-
-def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | None = None) -> go.Figure:
-    """
-    Pick Top-N by CryptoNAV (largest treasuries), then DISPLAY sorted by mNAV (desc)
-    with a 1× guideline. Optional mNAV cap to drop outliers.
-    """
-    snap = _entity_snapshot(df).dropna(subset=["MarketCap"])
-    snap = snap[snap["MarketCap"] > 0].copy()
-
-    with np.errstate(divide="ignore", invalid="ignore"):
-        snap["mNAV"] = np.where(snap["CryptoNAV"] > 0, snap["MarketCap"] / snap["CryptoNAV"], np.nan)
-
-    # Optional outlier cap BEFORE picking Top-N
-    if max_mnav is not None:
-        snap = snap[snap["mNAV"] <= float(max_mnav)]
-
-    # 1) choose Top-N BY CryptoNAV
-    d = snap.dropna(subset=["mNAV"]).sort_values("CryptoNAV", ascending=False).head(top_n).copy()
-    if d.empty:
-        return go.Figure()
-
-    # 2) DISPLAY order: mNAV descending → left = largest, right = lowest
-    d = d.sort_values("mNAV", ascending=False)
-
-    colors   = np.where(d["mNAV"] >= 1.0, "#43d1a0", "#f04438")  # premium green / discount red
-    text_lbl = [f"{v:.2f}×" if np.isfinite(v) else "—" for v in d["mNAV"]]
-
-    ymax = float(np.nanmax(d["mNAV"]))
-    y_range = [0, ymax * 1.15] if np.isfinite(ymax) and ymax > 0 else None
-
-    fig = go.Figure(go.Bar(
-        x=d["Entity Name"],
-        y=d["mNAV"],
-        marker_color=colors,
-        text=text_lbl,
-        textposition="outside",
-        cliponaxis=False,
-        customdata=np.c_[d["MarketCap"], d["CryptoNAV"]],
-        hovertemplate="<b>%{x}</b><br>mNAV: %{y:.2f}×<br>Market Cap: %{customdata[0]:$,.0f}<br>Crypto-NAV: %{customdata[1]:$,.0f}<extra></extra>",
-    ))
-
-    fig.add_hline(y=1.0, line_width=1, line_dash="dash", line_color="#cbd5e1")
-
-    fig.update_layout(
-        height=500,
-        margin=dict(l=40, r=30, t=20, b=120),
-        xaxis=dict(title=None, tickangle=-35, automargin=True),
-        yaxis=dict(title="mNAV (×)", range=y_range),
-        showlegend=False,
-        hoverlabel=dict(align="left"),
-    )
-
-    # subtle watermark
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.45, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=35, color="white"), opacity=0.3,
-        xanchor="center", yanchor="bottom",
-    )
-    return fig
-

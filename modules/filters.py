@@ -31,7 +31,10 @@ def _init_global_filters(df):
 
 
 def apply_filters(df):
-    with st.container(border=True):
+    with st.container(border=False):
+
+        st.markdown("")
+
         col1, col2, col3 = st.columns([2, 1, 1])
 
         asset_opts   = st.session_state["opt_assets"]
@@ -55,12 +58,13 @@ def apply_filters(df):
         if "ui_entity_type" not in st.session_state:
             st.session_state["ui_entity_type"] = st.session_state.get("flt_entity_type", "All")
         sel_et = col2.selectbox(
-            "Select Entity Type",
+            "Select Holder Type",
             options=type_opts,
             key="ui_entity_type"
         )
         st.session_state["flt_entity_type"] = sel_et
 
+        
         # country
         if "ui_country" not in st.session_state:
             st.session_state["ui_country"] = st.session_state.get("flt_country", "All")
@@ -83,12 +87,18 @@ def apply_filters(df):
         if sel_co != "All":
             out = out[out["Country"] == sel_co]
         out = out[out["USD Value"] > 0]
+    
+        st.markdown("")
+
         return out
 
 
 
 def apply_filters_historic(df: pd.DataFrame):
-    with st.container(border=True):
+    with st.container(border=False):
+
+        st.markdown("")
+
         col1, col2 = st.columns(2)
 
         # ensure a valid default exists in state
@@ -135,4 +145,7 @@ def apply_filters_historic(df: pd.DataFrame):
             df_filtered = df_filtered[df_filtered["Date"] >= cutoff_date]
 
         df_filtered = df_filtered[df_filtered["USD Value"] > 0]
+        
+        st.markdown("")
+        
         return df_filtered

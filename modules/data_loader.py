@@ -181,10 +181,21 @@ def load_units():
             dfs.append(df_a)
 
     if not dfs:
-        return pd.DataFrame(columns=["Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)", "Sector", "Industry", "About", "Website"]) #
+        return pd.DataFrame(columns=["entity_id", "Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)", "Sector", "Industry", "About", "Website"]) #
 
     df = pd.concat(dfs, ignore_index=True)
-    df = df[["Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)", "Sector", "Industry", "About", "Website"]] # 
+    # normalize entity_id from sheet
+    if "entity_id" in df.columns:
+        df["entity_id"] = df["entity_id"].astype(str).str.strip()
+    else:
+        df["entity_id"] = ""
+
+    # keep entity_id in the exported frame
+    df = df[[
+        "entity_id",
+        "Entity Name", "Ticker", "Market Cap", "Entity Type", "Country",
+        "Crypto Asset", "Holdings (Unit)", "Sector", "Industry", "About", "Website"
+    ]]
     df["Ticker"] = df["Ticker"].astype(str).str.strip()
     #df["Ticker"] = df["Ticker"].replace({"None": np.nan, "": np.nan}).astype("string")
 
@@ -259,7 +270,7 @@ def load_kpi_snapshots():
 
 
 # Function to get historic treasury data from master sheets
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_historic_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     service_account_info = st.secrets["gcp_service_account"]
@@ -369,3 +380,147 @@ def load_planned_data() -> pd.DataFrame:
 
     # Keep as-is; we’ll filter in the section
     return df
+
+
+
+CTT_DB_NAME = "ctt_database_v01"
+
+def _open_book(book_name: str):
+    scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+    return gspread.authorize(creds).open(book_name)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_entities_reference_ctt() -> pd.DataFrame:
+    ss = _open_book(CTT_DB_NAME)
+    tables = _batch_get_tables(ss, ["entities_reference!A:Q"])
+    df = _df_from_table(tables[0]) if tables and tables[0] else pd.DataFrame()
+    if df.empty:
+        return df
+    for c in ["entity_id","ent_name","ent_ticker","ent_type","ent_country","ent_sector","ent_industry","ent_sub_industry"]:
+        if c in df:
+            df[c] = df[c].astype(str).str.strip()
+    return df
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_assets_reference_ctt() -> pd.DataFrame:
+    ss = _open_book(CTT_DB_NAME)
+    tables = _batch_get_tables(ss, ["assets_reference!A:I"])
+    df = _df_from_table(tables[0]) if tables and tables[0] else pd.DataFrame()
+    if df.empty:
+        return df
+    for c in ["asset_id","ticker","name","cg_id"]:
+        if c in df:
+            df[c] = df[c].astype(str).str.strip()
+    return df
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_sources_reference_ctt() -> pd.DataFrame:
+    ss = _open_book(CTT_DB_NAME)
+    tables = _batch_get_tables(ss, ["sources_reference!A:F"])
+    df = _df_from_table(tables[0]) if tables and tables[0] else pd.DataFrame()
+    return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
+
+    
+def _to_float_eu(x):
+    if pd.isna(x):
+        return np.nan
+    s = str(x).strip()
+    if s == "" or s.lower() in {"n/a", "na", "none", "null", "-"}:
+        return np.nan
+    # remove thin spaces & normal spaces
+    s = s.replace("\u202f", "").replace(" ", "")
+    # if both '.' and ',' exist, assume '.' thousands sep and ',' decimal
+    if "," in s and "." in s:
+        s = s.replace(".", "")
+    # convert decimal comma to dot
+    s = s.replace(",", ".")
+    try:
+        return float(s)
+    except Exception:
+        return pd.to_numeric(s, errors="coerce")
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_holdings_events_ctt() -> pd.DataFrame:
+    ss = _open_book(CTT_DB_NAME)
+    tables = _batch_get_tables(ss, ["holdings_events!A:U"])
+    df = _df_from_table(tables[0]) if tables and tables[0] else pd.DataFrame()
+    if df.empty:
+        return df
+
+    # parse dates (keep old logic)
+    if "event_date" in df:
+        df["event_date"] = pd.to_datetime(df["event_date"], errors="coerce")
+
+    if "avg_usd_cost_per_asset" in df:
+        df["avg_usd_cost_per_asset"] = pd.to_numeric(
+            df["avg_usd_cost_per_asset"]
+            .astype(str)
+            .str.replace(".", "", regex=False)      # remove thousand separators
+            .str.replace(",", ".", regex=False),    # convert decimal comma to dot
+            errors="coerce"
+        )
+
+
+    # keep your other numeric conversions if needed
+    for c in ["units_delta", "usd_value_at_event", "units_effective"]:
+        if c in df:
+            df[c] = df[c].map(_to_float_eu)
+
+    return df
+
+
+# ---------- convenient joiner ----------
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_events_for_entity_id_asset(entity_id: str, asset_symbol: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    ents   = load_entities_reference_ctt()
+    assets = load_assets_reference_ctt()
+    srcs   = load_sources_reference_ctt()
+    evts   = load_holdings_events_ctt()
+
+    if evts.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    # map ticker to asset_id
+    asset_map = {str(t).upper(): aid for aid, t in zip(assets["asset_id"], assets["ticker"])}
+    aid = asset_map.get(str(asset_symbol).upper())
+    if not aid:
+        return pd.DataFrame(), pd.DataFrame()
+
+    d = evts[(evts["entity_id"] == str(entity_id)) & (evts["asset_id"] == aid)].copy()
+    if d.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    d["event_date"] = pd.to_datetime(d["event_date"], errors="coerce")
+    d = d.sort_values(["event_date","event_id"]).reset_index(drop=True)
+
+    if "source_id" in d.columns and not srcs.empty and "source_id" in srcs:
+        d = d.merge(
+            srcs.rename(columns={
+                "source_id":"_sid",
+                "source_type":"_stype",
+                "source_announcement_type":"_ann_type",
+                "source_url":"_url",
+                "source_date":"_sdate",
+                "source_confidence":"_sconf"
+            }),
+            left_on="source_id", right_on="_sid", how="left"
+        )
+
+    delta = d["units_effective"].fillna(d["units_delta"]).fillna(0.0)
+    d["cum_units"] = delta.cumsum()
+
+    events_enriched = d[[
+        "event_id","event_type","event_date","units_delta","units_effective",
+        "usd_value_at_event","avg_usd_cost_per_asset","method_of_holding",
+        "funding_category","funding_method","funding_vehicle","funding_debt_mat_date",
+        "confidence_level","precision","notes","source_id",
+        "_stype","_ann_type","_url","_sdate","_sconf","cum_units"
+    ]].copy()
+
+    ts = d[["event_date","cum_units"]].rename(columns={"event_date":"Date","cum_units":"Units"})
+    ts = ts.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+
+    return events_enriched, ts

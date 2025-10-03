@@ -3,6 +3,13 @@ import numpy as np
 import pandas as pd
 from streamlit.components.v1 import html as st_html
 
+import plotly.graph_objects as go
+from modules.ui import COLORS, render_plotly
+
+
+WATERMARK_TEXT="cryptotreasurytracker.xyz"
+
+
 def show_entity_dialog(
     *,
     # core identity
@@ -42,6 +49,10 @@ def show_entity_dialog(
     rows_df: pd.DataFrame | None = None,      # all rows for this entity (across assets)
     token_logo_map: dict | None = None,       # {"BTC": "data:image/png;base64,...", ...}
     supply_caps: dict | None = None,          # {"BTC": 21_000_000, ...}
+
+    events_enriched: pd.DataFrame | None = None,
+    holdings_timeseries: pd.DataFrame | None = None,
+
     agg_global_rank: int | None = None,       # aggregated global rank if you compute it
     per_asset_ranks: dict | None = None,      # {"BTC": 4, "ETH": 7, ...}
     nav_list: list[tuple[str, str]] | None = None,   # [(entity, asset), ...]
@@ -59,6 +70,16 @@ def show_entity_dialog(
             if ax >= 1e6:   return f"${v/1e6:.2f}M"
             if ax >= 1e3:   return f"${v/1e3:.2f}K"
             return f"${v:,.0f}"
+        except Exception:
+            return "-"
+
+    def _usd_full(x):
+        try:
+            v = float(x)
+            if np.isnan(v): 
+                return "-"
+            # no decimals if it’s an integer; else 2 decimals
+            return f"${int(round(v)):,}" if abs(v - round(v)) < 1e-9 else f"${v:,.2f}"
         except Exception:
             return "-"
 
@@ -468,22 +489,297 @@ def show_entity_dialog(
 
         st.divider()
 
-        # ===== Charts placeholders =====
+        # ===== Charts Holdings Over Time =====
         st.markdown(f"#### {name} — Holdings Over Time")
-        st.info("Chart coming soon")
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("##### Market Cap History")
-            st.info("Chart coming soon")
-        with cB:
-            st.markdown("##### Crypto-NAV History")
+
+        if isinstance(holdings_timeseries, pd.DataFrame) and not holdings_timeseries.empty:
+            ts = holdings_timeseries.copy()
+
+            # One point per calendar day for the line
+            ts["Date"] = pd.to_datetime(ts["Date"], errors="coerce").dt.normalize()
+            ts = ts.dropna(subset=["Date", "Units"]).sort_values("Date")
+            ts = ts.groupby("Date", as_index=False)["Units"].last()
+
+            # Extend to the current month for a flat tail and cap x axis to this month only
+            now_utc = pd.Timestamp.utcnow()
+
+            # cap the x axis to today instead of next month
+            today_curr = pd.Timestamp.utcnow().tz_localize(None).normalize()
+            last_date  = ts["Date"].max()
+
+            last_units = float(ts.loc[ts["Date"].idxmax(), "Units"])
+            if last_date < today_curr:
+                ts = pd.concat(
+                    [ts, pd.DataFrame({"Date": [today_curr], "Units": [last_units]})],
+                    ignore_index=True,
+                )
+
+            color = COLORS.get(asset, "#1f77b4")
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=ts["Date"],
+                y=ts["Units"],
+                mode="lines",
+                line=dict(color=color, width=3),
+                #hovertemplate="skip",
+                name="Balance",
+            ))
+
+            # Event bubbles aggregated per day with detailed hover
+            if isinstance(events_enriched, pd.DataFrame) and not events_enriched.empty:
+                ev = events_enriched.copy()
+                ev["event_date"] = pd.to_datetime(ev["event_date"], errors="coerce")
+                ev = ev.dropna(subset=["event_date"]).sort_values(["event_date", "event_id"])
+
+                # Effective change and per row description
+                ev["chg"] = pd.to_numeric(ev.get("units_effective"), errors="coerce")
+                ev["chg"] = ev["chg"].fillna(pd.to_numeric(ev.get("units_delta"), errors="coerce")).fillna(0.0)
+                ev["desc"] = [
+                    f"{str(et).title()} {val:+,.0f} {asset}"
+                    for et, val in zip(ev.get("event_type", ""), ev["chg"])
+                ]
+
+                # Day end balance for marker Y
+                if "cum_units" in ev.columns and ev["cum_units"].notna().any():
+                    day_balance = ev.groupby(ev["event_date"].dt.normalize())["cum_units"].last()
+                else:
+                    ev["_run"] = ev["chg"].cumsum()
+                    day_balance = ev.groupby(ev["event_date"].dt.normalize())["_run"].last()
+
+                # abbreviated net-change labels on bubbles
+                def _abbr(n):
+                    n = float(n)
+                    s = "+" if n > 0 else ""
+                    a = abs(n)
+                    if a >= 1e9: return f"{s}{a/1e9:.1f}B"
+                    if a >= 1e6: return f"{s}{a/1e6:.1f}M"
+                    if a >= 1e3: return f"{s}{a/1e3:.0f}k"
+                    return f"{s}{a:.0f}"
+            
+                # format per-event lines as 'Buy: +... ASSET' with bold numbers
+                def _fmt_line(et, val):
+                    return f"{str(et).title()}: <b>{val:+,.0f} {asset}</b>"
+
+                ev["desc_fmt"] = [_fmt_line(et, v) for et, v in zip(ev.get("event_type", ""), ev["chg"])]
+
+                g = ev.groupby(ev["event_date"].dt.normalize()).agg(
+                    sum_chg=("chg", "sum"),
+                    hover_list=("desc_fmt", list),
+                ).reset_index(names="event_day")
+
+                g["balance"] = g["event_day"].map(day_balance)
+                g["size"] = (np.log10(g["sum_chg"].abs() + 1.0) * 2 + 2).clip(6, 18)
+                g["hover_lines"] = g["hover_list"].map(lambda lst: "<br>".join(lst))
+                g["label"] = g["sum_chg"].map(_abbr)  # keep your abbreviated marker labels
+                g["textpos"] = np.where(np.arange(len(g)) % 2 == 0, "top center", "bottom center")
+
+                # full hover text: Balance first, then per-event lines
+                g["hover_text_full"] = [
+                    f"Balance: <b>{bal:,.0f} {asset}</b><br>{lines}"
+                    for bal, lines in zip(g["balance"], g["hover_lines"])
+                ]
+
+                # customdata: [balance, lines_html]
+                customdata = np.column_stack([g["balance"].astype(float).values, g["hover_lines"].values])
+
+                fig.add_trace(go.Scatter(
+                    x=g["event_day"],
+                    y=g["balance"],
+                    mode="markers+text",
+                    marker=dict(size=g["size"], color=color, opacity=0.85, line=dict(width=1, color=color)),
+                    #text=g["label"],
+                    textposition=g["textpos"],
+                    textfont=dict(size=10),
+                    customdata=customdata,
+                    hovertemplate=(
+                        "<b>%{x|%b %d, %Y}</b><br>"
+                        f"Balance: <b>%{{customdata[0]:,.0f}} {asset}</b><br>"
+                        "%{customdata[1]}"
+                        "<extra></extra>"
+                    ),
+                    name="Events",
+                    cliponaxis=False,   # <-- add this
+                ))
+
+            # Dynamic monthly tick spacing and clamp to the current month
+            x_min = ts["Date"].min()
+            x_max = today_curr
+            x_min = x_min - pd.Timedelta(days=5)
+
+            months_span = (x_max.year - x_min.year) * 12 + (x_max.month - x_min.month) + 1
+
+            if months_span <= 12:
+                dtick = "M1"   # every month
+            elif months_span <= 36:
+                dtick = "M2"   # every 2 months
+            else:
+                dtick = "M3"   # every 3 months
+
+            # --- Y-axis padding for single/flat series ---
+            y_series = ts["Units"].astype(float)
+            if "g" in locals() and isinstance(g, pd.DataFrame) and not g.empty and "balance" in g:
+                y_series = pd.concat([y_series, g["balance"].astype(float)], ignore_index=True)
+
+            ymin = float(np.nanmin(y_series)) if len(y_series) else np.nan
+            ymax = float(np.nanmax(y_series)) if len(y_series) else np.nan
+
+            y_range = None
+            if np.isfinite(ymin) and np.isfinite(ymax):
+                if np.isclose(ymax, ymin):
+                    pad = max(1.0, abs(ymax) * 0.02)   # ~2% or at least 1 unit
+                else:
+                    pad = max((ymax - ymin) * 0.10, 1.0)  # 10% padding or at least 1 unit
+                y_range = [ymin - pad, ymax + pad]
+
+            # apply computed y-range (only if available) and nicer tick format
+            if y_range:
+                fig.update_yaxes(range=y_range)
+
+            fig.update_layout(
+                margin=dict(l=30, r=20, t=20, b=20),
+                height=350,
+                hovermode="closest",
+                template="plotly_white",
+                xaxis=dict(
+                    type="date",
+                    tickformat="%b %Y",
+                    hoverformat="%b %d, %Y",  # pretty date in unified hover header
+                    ticklabelmode="period",
+                    dtick=dtick,
+                    range=[x_min, x_max],
+                    title="",
+                    showspikes=False,
+                    fixedrange=True
+                ),
+                yaxis=dict(title="Units", showspikes=False, tickformat="~s", fixedrange=True), 
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            )
+
+            fig.add_annotation(
+                text=WATERMARK_TEXT,
+                x=0.5, y=0.5,                      # Center of chart
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=30, color="white"),
+                opacity=0.2,                       # Adjust for subtlety
+                xanchor="center",
+                yanchor="middle",
+            )
+            render_plotly(fig, filename=f"{name}_{asset}_holdings", extra_config={"scrollZoom": False})
+        else:
             st.info("Chart coming soon")
 
-        st.divider()
-
-        # ===== Historical crypto holdings =====
+        # ===== Historical Crypto Holdings =====
         st.markdown("#### Historical Crypto Holdings")
-        st.info("Coming soon")
+
+        if isinstance(events_enriched, pd.DataFrame) and not events_enriched.empty:
+            ev = events_enriched.copy()
+
+            ev["Date"] = pd.to_datetime(ev["event_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+            chg = pd.to_numeric(ev.get("units_effective"), errors="coerce")
+            chg = chg.fillna(pd.to_numeric(ev.get("units_delta"), errors="coerce"))
+            ev["Change_num"] = chg
+
+            bal = pd.to_numeric(ev.get("cum_units"), errors="coerce")
+            if bal.isna().all():
+                bal = chg.fillna(0.0).cumsum()
+            ev["Balance_num"] = bal
+
+            def _fmt_signed(n):
+                if pd.isna(n):
+                    return "-"
+                s = f"{n:,.0f}"
+                return f"+{s}" if n > 0 else s
+
+            ev["Balance"] = ev["Balance_num"].map(lambda x: "-" if pd.isna(x) else f"{x:,.0f}")
+            ev["Change"] = ev["Change_num"].map(_fmt_signed)
+            ev["Total Cost Basis"] = ev.get("usd_value_at_event").map(_usd)
+            ev[f"Cost Basis per {asset}"] = ev.get("avg_usd_cost_per_asset").map(_usd_full)
+
+            # Source fields
+            ev["Source Type"] = ev.get("_ann_type", "")
+            ev["Source Credibility"] = ev.get("_sconf", "")
+            ev["Source Link"] = ev.get("_url", "")
+
+            cols = [
+                "Date",
+                "Balance",
+                "Change",
+                "Total Cost Basis",
+                f"Cost Basis per {asset}",
+                "Source Type",
+                "Source Credibility",
+                "Source Link",
+            ]
+            out = ev[cols].copy().sort_values("Date", ascending=False)
+
+            # Credibility pill helper
+            def _cred_pill(text):
+                t = str(text or "").strip().lower()
+                bg = "#dedede"
+                if t.startswith("high"):
+                    bg = "#43d1a0"
+                elif t.startswith("med"):
+                    bg = "#ffe066"
+                elif t.startswith("low"):
+                    bg = "#f94144"
+                return (
+                    f"<span style='display:inline-block;padding:4px 10px;border-radius:9999px;"
+                    f"background:{bg};color:#000;font-weight:700;font-size:12px;'>"
+                    f"{text if text else '-'}"
+                    f"</span>"
+                )
+
+            header_html = (
+                "<tr>"
+                "<th>Date</th>"
+                f"<th style='text-align:right'>{asset} Balance</th>"
+                "<th style='text-align:right'>Change</th>"
+                "<th style='text-align:right'>Total Cost Basis</th>"
+                f"<th style='text-align:right'>Cost Basis per {asset}</th>"
+                "<th>Source Type</th>"
+                "<th>Source Credibility</th>"
+                "<th>Source Link</th>"
+                "</tr>"
+            )
+
+            def _row_html(r):
+                ch = r["Change"]
+                color = "#43d1a0" if isinstance(ch, str) and ch.startswith("+") else ("#f94144" if isinstance(ch, str) and ch.startswith("-") else "inherit")
+                link = r["Source Link"]
+                link_html = f"<a href='{link}' target='_blank'>Open</a>" if isinstance(link, str) and link else "-"
+                cred_html = _cred_pill(r["Source Credibility"])
+                return (
+                    "<tr>"
+                    f"<td>{r['Date']}</td>"
+                    f"<td style='text-align:right'>{r['Balance']}</td>"
+                    f"<td style='text-align:right;color:{color};font-weight:600'>{ch}</td>"
+                    f"<td style='text-align:right'>{r['Total Cost Basis']}</td>"
+                    f"<td style='text-align:right'>{r[f'Cost Basis per {asset}']}</td>"
+                    f"<td>{r['Source Type']}</td>"
+                    f"<td>{cred_html}</td>"
+                    f"<td style='min-width:140px'>{link_html}</td>"
+                    "</tr>"
+                )
+
+            body_html = "\n".join(_row_html(r) for _, r in out.iterrows())
+
+            st.markdown(
+                f"""
+                <div style="overflow-x:auto">
+                <table style="width:100%; border-collapse:collapse">
+                    <thead style="position:sticky; top:0; background:#fff; color:#000">{header_html}</thead>
+                    <tbody>{body_html}</tbody>
+                </table>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info("Coming soon")
+
 
         # ===== Close =====
         if st.button("Close"):

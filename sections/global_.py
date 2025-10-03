@@ -5,10 +5,12 @@ from analytics import log_filter_if_changed
 
 
 def render_global():
+    st.title("Global Crypto Treasury Map")
     df = st.session_state["data_df"]
 
-    with st.container(border=True):
-        #c1, c2, c3 = st.columns(3)
+    st.markdown("")
+
+    with st.container(border=False):
         c1, c2, c3 = st.columns([2, 1, 1])
 
         asset_opts   = st.session_state["opt_assets"]
@@ -32,7 +34,7 @@ def render_global():
         if "ui_entity_type_map" not in st.session_state:
             st.session_state["ui_entity_type_map"] = st.session_state.get("flt_entity_type", "All")
         sel_et = c2.selectbox(
-            "Entity Type",
+            "Holder Type",
             options=type_opts,
             key="ui_entity_type_map"   # no index on reruns
         )
@@ -55,14 +57,15 @@ def render_global():
             "value_range": sel_v or "All",
         })
 
-    
-    # Global Map
-    with st.container(border=True):
-        st.markdown("#### Global Crypto Treasury Map", help="Geographic distribution of crypto treasuries, filtered by crypto asset, entity type, and value range.")
+    st.markdown("")
 
-        if not sel_assets:
-            st.info("Select at least one Crypto Asset to display the map")
-        else:
-            fig = render_world_map(df, sel_assets, sel_et, sel_v)
-            if fig is not None:
-                render_plotly(fig, "crypto_reserve_world_map", extra_config={"scrollZoom": False})
+    # Global Map
+    #with st.container(border=True):
+    #st.markdown("#### Global Crypto Treasury Map", help="Geographic distribution of crypto treasuries, filtered by crypto asset, entity type, and value range.")
+
+    if not sel_assets:
+        st.info("Select at least one Crypto Asset to display the map")
+    else:
+        fig = render_world_map(df, sel_assets, sel_et, sel_v)
+        if fig is not None:
+            render_plotly(fig, "crypto_reserve_world_map", extra_config={"scrollZoom": False})

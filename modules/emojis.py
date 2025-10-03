@@ -42,6 +42,7 @@ country_emoji_map = {
     "Thailand": "🇹🇭",
     "Vietnam": "🇻🇳",
     "Philippines": "🇵🇭",
+    "Kazakhstan": "🇰🇿",
     "Indonesia": "🇮🇩",
     "Saudi Arabia": "🇸🇦",
     "Qatar": "🇶🇦",

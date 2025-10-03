@@ -157,10 +157,10 @@ def render_kpis(df, snapshots_df=None):
     with col2:
         with st.container(border=True):
             st.metric(
-                "Total Unique Entities",
+                "Total Unique Holders",
                 f"{total_entities}",
                 delta=f"{ent_delta_units} (WoW)",
-                help="Entities holding crypto assets directly (vs last week), excluding ETFs and indirect vehicles. Note: some entities hold multiple assets and are counted once."
+                help="Entities holding crypto assets (vs last week), excluding ETFs and other indirect vehicles. Note: some entities hold various crypto assets and are counted once."
             )
 
             # sets for exclusive partition (BTC first, then ETH not in BTC, then SOL not in BTC/ETH, then Other = none of these)
@@ -353,11 +353,11 @@ def render_kpis(df, snapshots_df=None):
 
 # Top 5 Holders Chart
 def top_5_holders(df, asset="BTC", key_prefix="top5"):
-    with st.container(border=True):
+    with st.container(border=False):
         logo_b64 = {"BTC": btc_b64, "ETH": eth_b64, "SOL": sol_b64}.get(asset)
         st.markdown(
             f'''
-            #### Top 5 {asset} Treasury Holders <img src="data:image/png;base64,{logo_b64}" style="height:26px; vertical-align: middle; margin: 0 4px 4px;">
+            <img src="data:image/png;base64,{logo_b64}" style="height:26px; vertical-align: middle; margin: 0 4px 4px;"> Treasury Holders 
             ''',
             unsafe_allow_html=True,
             help=f"List of top 5 entities by {asset} treasury holdings shown in units or USD value."
@@ -371,7 +371,9 @@ def top_5_holders(df, asset="BTC", key_prefix="top5"):
             key=f"{key_prefix}_{asset}_mode"
         )
         by = "units" if mode == "Unit Count" else "usd"
-
+        
+        st.markdown("")
+        
         fig = render_rankings(df, asset=asset, by=by)
         render_plotly(
             fig,
@@ -465,7 +467,7 @@ def _compute_current_vs_last(df_current: pd.DataFrame, df_hist: pd.DataFrame, as
 
 
 def render_historic_kpis(df_filtered: pd.DataFrame):
-    with st.container(border=True):
+    with st.container(border=False):
         col1, col2, col3 = st.columns(3)
 
         if df_filtered.empty:
@@ -711,8 +713,26 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
 
     hist = _prep_history(df_hist_filtered)
 
-    with st.container(border=True):
+    # --- add prior month baseline so the first month (e.g. January) has deltas ---
+    start_m = pd.to_datetime(hist["Date"].min()).to_period("M").to_timestamp()
+    prev_m  = (start_m - pd.offsets.MonthBegin(1))
+
+    assets_scope = hist["Crypto Asset"].dropna().unique().tolist()
+    base_hist = st.session_state.get("historic_df")
+
+    if isinstance(base_hist, pd.DataFrame) and not base_hist.empty:
+        # ensure base_hist has month-start Date for comparison
+        bh = base_hist.copy()
+        bh["Date"] = pd.to_datetime(bh["Date"]).dt.to_period("M").dt.to_timestamp()
+        base_rows = bh[(bh["Crypto Asset"].isin(assets_scope)) & (bh["Date"] == prev_m)]
+        hist_decomp = pd.concat([base_rows, hist], ignore_index=True)
+        hist_decomp = _prep_history(hist_decomp)  # <-- ensure base month has Price USD, numerics, etc.
+    else:
+        hist_decomp = hist.copy()
+
+    with st.container(border=False):
         st.markdown("### Flow & Decomposition (Price vs Accumulation)", help="Shows whether growth came from new units or price beta by splitting monthly USD Delta into “Delta Price on prior units” vs “Delta Units at current price”.")
+        st.markdown("")
 
         c1, c2 = st.columns([1, 1])
 
@@ -730,10 +750,15 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
         else:
             asset_pick = None
 
-        # Decompose per asset, then aggregate if needed
-        decomp = (hist.groupby("Crypto Asset", group_keys=True)
-                        .apply(_decompose_asset)
-                        .reset_index(drop=True))
+        decomp = (
+            hist_decomp.groupby("Crypto Asset", group_keys=True)
+                    .apply(_decompose_asset)
+                    .reset_index(drop=True)
+        )
+
+        # keep only months within the filtered range (drop the injected prior month from the display)
+        decomp["Date"] = pd.to_datetime(decomp["Date"]).dt.to_period("M").dt.to_timestamp()
+        decomp = decomp[decomp["Date"] >= start_m]
 
         if decomp.empty:
             st.info("Not enough monthly history to compute flows for the current selection.")
@@ -749,6 +774,19 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
                           .reset_index())
             bar_color_price = "#8892a6"
             bar_color_units = "#43d1a0"
+
+        view["Date"] = pd.to_datetime(view["Date"]).dt.to_period("M").dt.to_timestamp()
+
+        start_m = pd.to_datetime(df_hist_filtered["Date"].min()).to_period("M").to_timestamp()
+        end_m   = pd.to_datetime(df_hist_filtered["Date"].max()).to_period("M").to_timestamp()
+        full_months = pd.date_range(start=start_m, end=end_m, freq="MS")  # Month Start
+
+        view = (view.set_index("Date")
+                    .reindex(full_months, fill_value=0.0)
+                    .rename_axis("Date")
+                    .reset_index())
+
+        st.markdown("")
 
         # KPIs (last month)
         last = view.sort_values("Date").tail(1)
@@ -787,8 +825,8 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
             barmode="relative",
             height=360,
             margin=dict(l=40, r=20, t=10, b=30),
-            xaxis=dict(title=None, tickformat="%b %Y"),
-            yaxis=dict(title="ΔUSD", tickprefix="$"),
+            xaxis=dict(title=None, tickformat="%b %Y", fixedrange=True),
+            yaxis=dict(title="ΔUSD", tickprefix="$", fixedrange=True),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
             hoverlabel=dict(align="left"),
         )
@@ -803,7 +841,7 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
             xanchor="center",
             yanchor="top",
         )
-        render_plotly(fig, filename=f"flows_{asset_pick or 'agg'}".lower())
+        render_plotly(fig, filename=f"flows_{asset_pick or 'agg'}".lower(), extra_config={"scrollZoom": False})
 
         st.caption("Note: Decomposition uses **asset-level monthly aggregates**; it respects the *filters (assets + time)*. "
-                   "Entity Type and Country filters are not applied unless history exists at that granularity.")
+                   "Holder Type and Country filters are not applied unless history exists at that granularity.")

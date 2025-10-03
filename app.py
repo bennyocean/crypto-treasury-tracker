@@ -7,10 +7,8 @@ logging.getLogger("py.warnings").setLevel(logging.ERROR)
 
 import streamlit as st
 
-import plotly
-
 from modules import ui
-from modules.data_loader import get_prices, load_units, attach_usd_values, load_historic_data, load_planned_data, load_kpi_snapshots
+from modules.data_loader import get_prices, load_units, attach_usd_values, load_historic_data, load_planned_data, load_kpi_snapshots, load_entities_reference_ctt, load_assets_reference_ctt, load_sources_reference_ctt, load_holdings_events_ctt
 from modules.filters import _init_global_filters, _opts
 from modules.sidebar_info import render_sidebar
 from analytics import init_analytics
@@ -39,6 +37,11 @@ if "initialized" not in st.session_state:
 
     # load kpi snapshots
     st.session_state["kpi_snapshots"] = load_kpi_snapshots()
+    # CTT relational sources
+    st.session_state["ctt_entities"] = load_entities_reference_ctt()
+    st.session_state["ctt_assets"]   = load_assets_reference_ctt()
+    st.session_state["ctt_sources"]  = load_sources_reference_ctt()
+    st.session_state["ctt_events"]   = load_holdings_events_ctt()
 
     # canonical option lists used by ALL pages
     st.session_state["opt_assets"] = _opts(st.session_state["data_df"]["Crypto Asset"])

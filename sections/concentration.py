@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from modules.filters import apply_filters
 from modules.kpi_helpers import render_plotly
 from modules.charts import lorenz_curve_chart
+from modules.emojis import country_emoji_map
 
 # ---------- concentration metrics ----------
 def _top_share(s: pd.Series, n: int = 10) -> float:
@@ -36,7 +37,6 @@ def _gini(s: pd.Series) -> float:
     # G = 2*sum(i*x)/(n*sum(x)) - (n+1)/n
     return float((2.0 * np.sum(i * x)) / (n * S) - (n + 1.0) / n)
 
-
 def _lorenz_points(s: pd.Series):
     """Return (p, L(p)) arrays for Lorenz curve."""
     x = np.sort(s.astype(float).values)
@@ -51,27 +51,37 @@ def _lorenz_points(s: pd.Series):
     L = np.insert(L, 0, 0.0)
     return p, L
 
-# ---------- UI ----------
+
 def render_concentration():
-    # respect the global filters (assets, type, country) users set elsewhere
+    st.title("Crypto Treasury Concentration")
+
     base_df = st.session_state["data_df"]
     df_view = apply_filters(base_df)
+    
+    # Map country column to emoji
+    flag_series = (
+        df_view["Country"]
+        .astype("string")
+        .map(lambda c: country_emoji_map.get(c, "🏳️"))
+    )
+
+    # Prepend flag to Entity Name
+    df_view["Country"] = flag_series.fillna("🏳️") + " " + df_view["Country"].astype("string")
 
     # guards
     if df_view.empty:
         st.info("No data for the current filters.")
         return
 
-    with st.container(border=True):
-        st.markdown("#### Concentration Dashboard: HHI, Top-N Share, Gini Coefficient & Lorenz Curve", help= "HHI and Gini coefficient tell if reserves are concentrated in a handful of players.")
+    with st.container(border=False):
+        st.markdown("#### Gini Index & Lorenz Curve", help= "HHI and Gini coefficient tell if reserves are concentrated in a handful of players.")
 
-        # controls row
         c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
 
         group_by = c1.segmented_control(
             "Group by",
-            options=["Entity", "Country", "Entity Type"],
-            default="Entity",
+            options=["Holder", "Country", "Holder Type"],
+            default="Holder",
             help="Choose the population over which concentration is measured."
         )
 
@@ -97,7 +107,7 @@ def render_concentration():
         show_table = c4.checkbox("Show Top Table", value=True)
 
         # map group key
-        if group_by == "Entity":
+        if group_by == "Holder":
             key = "Entity Name"
         elif group_by == "Country":
             key = "Country"
@@ -124,6 +134,8 @@ def render_concentration():
         m_hhi = _hhi(weights)
         m_gini = _gini(weights)
 
+        st.markdown("")
+
         k1, k2, k3 = st.columns(3)
         with k1:
             with st.container(border=True):
@@ -137,6 +149,8 @@ def render_concentration():
 
         assets_sel = st.session_state.get("flt_assets", [])
         asset_for_color = assets_sel[0] if len(assets_sel) == 1 else None
+
+        st.markdown("")
 
         # Lorenz curve
         p, L = _lorenz_points(weights)
@@ -156,12 +170,14 @@ def render_concentration():
             disp["Weight_fmt"] = disp["Weight"].map(lambda v: f"${v:,.0f}" if value_col == "USD Value" else f"{v:,.0f}")
             disp["SharePct"] = (disp["Share"] * 100).round(4)  # 0..100 for ProgressColumn
 
+ 
             st.dataframe(
                 disp[["Weight_fmt", "SharePct"]],
                 width="stretch",
                 height=min(400, 38*(len(disp)+1)+6),
                 column_config={
-                    "Weight_fmt": st.column_config.TextColumn("Weight"),
+                    "Entity Name": st.column_config.TextColumn("Holder"),
+                    "Weight_fmt": st.column_config.TextColumn("Weight (USD)"),
                     "SharePct": st.column_config.ProgressColumn("Share", min_value=0, max_value=100, format="%.2f%%"),
                 },
             )
