@@ -907,7 +907,7 @@ def top_countries_by_usd_value(df):
             y=country,
             text=format_usd(total),
             showarrow=False,
-            font=dict(size=16, color='white'),
+            font=dict(size=18, color='white'),
             xanchor='left',
             yanchor='middle'
         )

@@ -75,7 +75,7 @@ def render_treasury_breakdown():
         with st.container(border=False):
             st.markdown("#### Top 10 Countries",help="Countries with the largest reported crypto treasury holdings, ranked by the selected metric. Note: 'Decentralized' refers to globally running networks and protocols without a headquarter and/or legal registration.")
 
-            display_mode = st.segmented_control("Display mode", options=["USD Value", "Holder Count"], default="USD Value", label_visibility="collapsed")
+            display_mode = st.segmented_control("Display mode", options=["USD Value", "Holder Count"], default="Holder Count", label_visibility="collapsed")
 
             if display_mode == "Holder Count":
                 fig_country = charts.top_countries_by_entity_count(df_filtered)
@@ -83,7 +83,9 @@ def render_treasury_breakdown():
                 fig_country = charts.top_countries_by_usd_value(df_filtered)
 
             render_plotly(fig_country, "top_5_countries")
+
     st.divider()
+
     with st.container(border=False):
         st.markdown(
             "#### Crypto Treasury Treemap",
