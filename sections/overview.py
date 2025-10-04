@@ -483,6 +483,7 @@ def render_overview():
     options_ent_type=["Public Company","Private Company","Government","Non-Profit Organization","DAO","Other"]
     color_ent_type=["#7bc5ed", "#f759b0", "#f7c694", "#80d9b7",  "#eaf26f", "#ded9d9"]
 
+
     # Render dashboard table
     edited = st.data_editor(
         display,

@@ -267,11 +267,11 @@ def render_planned():
 
     # Columns to show (note: no Country now)
     disp = disp[[
-        "Date Source", "Entity","Ticker","Entity Type","Crypto Asset",
+        "Entity","Ticker","Entity Type","Crypto Asset",
         "Pipeline (USD)", "Invested %","Status",
         "Funding Method","Timeline",
-        "Comments", "Data Source"
-    ]].sort_values(by='Date Source', ascending=False)
+        "Comments", "Date Source", "Data Source"
+    ]].sort_values(by='Invested %', ascending=False)
 
     disp = disp.reset_index(drop=True)
     disp.index = disp.index + 1
