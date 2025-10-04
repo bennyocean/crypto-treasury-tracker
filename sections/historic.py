@@ -41,10 +41,12 @@ def render_historic_holdings():
         st.markdown("#### Historic Crypto Treasury Holdings Breakdown", help="Shows the historic development of aggregated and individual crypto asset holdings across all entities")
         st.markdown("")
 
-        metric = st.segmented_control(
+        c1, c2 = st.columns([1, 1])
+
+        metric = c1.segmented_control(
             "Metric",
             options=["USD Value (Total)", "Unit Count (Total)", "Monthly Change (Units)"],
-            default="USD Value (Total)",
+            default="Monthly Change (Units)",
             label_visibility="collapsed"
         )
 
@@ -53,20 +55,24 @@ def render_historic_holdings():
             if not assets_in_scope:
                 st.info("No assets available in current selection.")
             else:
-                chosen_asset = st.pills(
+                chosen_asset = c2.pills(
                     "Asset",
                     assets_in_scope,
                     default=assets_in_scope[0],
-                    key="historic_changes_asset_picker"
+                    key="historic_changes_asset_picker",
+                    label_visibility="collapsed"
+   
                 )
                 
                 df_single = df_filtered[df_filtered["Crypto Asset"] == chosen_asset]
                 ticker = df_single["Crypto Asset"].iloc[0]
-
+                st.markdown("")
                 render_plotly(
                     historic_changes_chart(df_single, start=display_start, end=df_single["Date"].max()), f"historic_unit_changes_{ticker}")
 
         elif metric == "USD Value (Total)":
+            st.markdown("")
+
             render_plotly(historic_chart(df_filtered, by="USD"), "historic_usd_total")
 
         elif metric == "Unit Count (Total)":
@@ -74,6 +80,7 @@ def render_historic_holdings():
                 st.info("Select a single crypto asset to view unit totals.")
             else:
                 ticker = df_filtered["Crypto Asset"].iloc[0]
+                st.markdown("")
 
                 render_plotly(historic_chart(df_filtered, by="Unit"),f"historic_units_{ticker}")
 

@@ -363,10 +363,6 @@ def historic_chart(df, by="USD"):
 
 
 def historic_changes_chart(df, start=None, end=None):
-    """
-    Monthly net change (units) with correct first-month values
-    start/end = datetime boundaries for display
-    """
     d = df.copy()
     d['Holdings (Unit)'] = pd.to_numeric(d['Holdings (Unit)'], errors='coerce')
 
@@ -387,7 +383,7 @@ def historic_changes_chart(df, start=None, end=None):
     if end is not None:
         monthly = monthly[monthly['Date'] <= pd.to_datetime(end)]
 
-    # --- now drop the injected baseline from display ---
+    # --- drop the injected baseline from display ---
     if start is not None:
         monthly = monthly[monthly['Date'] >= start]
 
@@ -397,8 +393,7 @@ def historic_changes_chart(df, start=None, end=None):
         .apply(lambda g: (
             f"<b>{g.name.strftime('%B %Y')}</b><br>" +
             "<br>".join(f"{row['Crypto Asset']}: <b>{row['Change']:+,.0f}</b>"
-                        for _, row in g.iterrows()) +
-            f"<br>Total: <b>{g['Change'].sum():+,.0f}</b>"
+                        for _, row in g.iterrows())
         ))
         .to_dict()
     )
@@ -423,8 +418,8 @@ def historic_changes_chart(df, start=None, end=None):
     )
 
     # --- Trend line with dynamic window ---
-    #window = max(2, min(6, len(monthly['Date'].unique()) // 2))
     window = max(2, min(6, len(monthly['Date'].unique())//2))
+    ticker = monthly["Crypto Asset"].iloc[0]
 
     trend = (
         monthly.groupby('Date')['Change'].sum()
@@ -432,12 +427,19 @@ def historic_changes_chart(df, start=None, end=None):
         .mean()
         .reset_index()
     )
+    trend['Hover'] = trend.apply(
+        lambda r: f"<b>{r['Date'].strftime('%B %Y')}</b><br>"
+                f"{window}M trend: <b>{r['Change']:+,.0f} {ticker}</b>",
+        axis=1
+    )
     fig.add_scatter(
         x=trend['Date'],
         y=trend['Change'],
         mode='lines',
         line=dict(color=default_blue, width=4, dash='dot'),
-        name=f'Trend ({window}M avg)'
+        name=f"Trend ({window}M avg)",
+        customdata=trend['Hover'],
+        hovertemplate="%{customdata}<extra></extra>"
     )
 
     fig.update_layout(

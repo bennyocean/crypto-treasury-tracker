@@ -746,7 +746,7 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
         )
         if view_mode == "Single asset":
             assets_in_scope = sorted(hist["Crypto Asset"].dropna().unique().tolist())
-            asset_pick = c2.pills("Asset", assets_in_scope, default=["BTC"])
+            asset_pick = c2.pills("Asset", assets_in_scope, default=["BTC"], label_visibility="collapsed")
         else:
             asset_pick = None
 
