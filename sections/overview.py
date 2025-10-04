@@ -127,7 +127,7 @@ def render_overview():
     st.markdown("")
 
     #with st.container(border=True):
-    st.markdown("#### Crypto Treasury Leaderboard", help="Ranked view of entities by digital asset treasury holdings.")
+    #st.markdown("#### Crypto Treasury Leaderboard", help="Ranked view of entities by digital asset treasury holdings.")
 
     table = df.copy()
     table = table.sort_values("USD Value", ascending=False).reset_index(drop=True)

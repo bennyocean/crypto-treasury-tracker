@@ -18,6 +18,7 @@ TYPE_PALETTE = {
     "Other": (222, 217, 217),           # white
 }
 COLOR_MAP = {k: f"rgb({r},{g},{b})" for k, (r, g, b) in TYPE_PALETTE.items()}
+default_blue = "#66cded"
 
 WATERMARK_TEXT="cryptotreasurytracker.xyz"
 
@@ -359,6 +360,109 @@ def historic_chart(df, by="USD"):
     )
 
     return fig
+
+
+def historic_changes_chart(df, start=None, end=None):
+    """
+    Monthly net change (units) with correct first-month values
+    start/end = datetime boundaries for display
+    """
+    d = df.copy()
+    d['Holdings (Unit)'] = pd.to_numeric(d['Holdings (Unit)'], errors='coerce')
+
+    # --- compute on full history ---
+    monthly = (
+        d.groupby(['Date', 'Crypto Asset'])['Holdings (Unit)']
+        .sum()
+        .reset_index()
+        .sort_values(['Crypto Asset', 'Date'])
+    )
+    monthly['Change'] = monthly.groupby('Crypto Asset')['Holdings (Unit)'].diff().fillna(0)
+
+    # --- keep 1 extra prior month for baseline ---
+    if start is not None:
+        start = pd.to_datetime(start)
+        prev_month = start - pd.offsets.MonthBegin(1)
+        monthly = monthly[monthly['Date'] >= prev_month]
+    if end is not None:
+        monthly = monthly[monthly['Date'] <= pd.to_datetime(end)]
+
+    # --- now drop the injected baseline from display ---
+    if start is not None:
+        monthly = monthly[monthly['Date'] >= start]
+
+    # Hover text
+    breakdowns = (
+        monthly.groupby('Date')
+        .apply(lambda g: (
+            f"<b>{g.name.strftime('%B %Y')}</b><br>" +
+            "<br>".join(f"{row['Crypto Asset']}: <b>{row['Change']:+,.0f}</b>"
+                        for _, row in g.iterrows()) +
+            f"<br>Total: <b>{g['Change'].sum():+,.0f}</b>"
+        ))
+        .to_dict()
+    )
+    monthly['Custom Hover'] = monthly['Date'].map(breakdowns)
+    monthly['Label'] = monthly['Change'].apply(lambda x: f"{x:+,.0f}")
+
+    # --- Bar plot ---
+    fig = px.bar(
+        monthly,
+        x='Date',
+        y='Change',
+        color='Crypto Asset',
+        text='Label',
+        custom_data=['Custom Hover'],
+        barmode='stack',
+        color_discrete_map=COLORS
+    )
+    fig.update_traces(
+        hovertemplate="%{customdata[0]}<extra></extra>",
+        textposition='outside',
+        selector=dict(type='bar')
+    )
+
+    # --- Trend line with dynamic window ---
+    #window = max(2, min(6, len(monthly['Date'].unique()) // 2))
+    window = max(2, min(6, len(monthly['Date'].unique())//2))
+
+    trend = (
+        monthly.groupby('Date')['Change'].sum()
+        .rolling(window=window, min_periods=1)
+        .mean()
+        .reset_index()
+    )
+    fig.add_scatter(
+        x=trend['Date'],
+        y=trend['Change'],
+        mode='lines',
+        line=dict(color=default_blue, width=4, dash='dot'),
+        name=f'Trend ({window}M avg)'
+    )
+
+    fig.update_layout(
+        margin=dict(t=50, b=20),
+        legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
+        hoverlabel=dict(align='left'),
+        xaxis=dict(fixedrange=True),
+        yaxis=dict(fixedrange=True, title="Net Change (Units)"),
+        xaxis_title=None,
+        legend_title_text=None,
+    )
+    fig.update_xaxes(dtick="M1", tickformat="%b %Y")
+
+    # Watermark
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.95, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=30, color="white"), opacity=0.3,
+        xanchor="center", yanchor="top",
+    )
+
+    return fig
+
+
 
 
 def _first_day_next_month(dt: pd.Timestamp) -> pd.Timestamp:
@@ -1242,7 +1346,6 @@ def treemap_composition(df, mode: str = "country_type"):
 
 def lorenz_curve_chart(p, L, asset: str | None = None):
     """Lorenz curve; if a single asset is passed, color the line with its color."""
-    default_blue = "#66cded"
 
     line_color = COLORS.get(asset, default_blue) if asset else default_blue
 
@@ -1487,8 +1590,8 @@ def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | Non
 
     fig.update_layout(
         height=500,
-        margin=dict(l=40, r=30, t=0, b=0),
-        xaxis=dict(title=None, tickangle=-35, automargin=True, fixedrange=True),
+        margin=dict(l=0, r=20, t=20, b=0),
+        xaxis=dict(title=None, tickangle=45, automargin=True, fixedrange=True),
         yaxis=dict(title="mNAV (×)", range=y_range, fixedrange=True),
         showlegend=False,
         hoverlabel=dict(align="left"),

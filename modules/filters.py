@@ -102,7 +102,7 @@ def apply_filters_historic(df: pd.DataFrame):
         col1, col2 = st.columns(2)
 
         # ensure a valid default exists in state
-        if st.session_state.get("flt_time_range") not in {"All","3M","YTD","12M"}:
+        if st.session_state.get("flt_time_range") not in {"All","3 Months", "6 Months","12 Months", "YTD"}:
             st.session_state["flt_time_range"] = "All"
 
         # --- Asset pills ---
@@ -121,7 +121,7 @@ def apply_filters_historic(df: pd.DataFrame):
         st.session_state["flt_assets"] = sel_assets
 
         # --- Time range widget: initialize UI key once, then no index on reruns
-        time_opts = ["All", "3M", "YTD", "12M"]
+        time_opts = ["All","3 Months", "6 Months","12 Months", "YTD"]
         if "ui_time_range_hist" not in st.session_state:
             st.session_state["ui_time_range_hist"] = st.session_state.get("flt_time_range", "All")
         sel_tr = col2.selectbox(
@@ -136,16 +136,22 @@ def apply_filters_historic(df: pd.DataFrame):
 
         if not df_filtered.empty and sel_tr != "All":
             latest_date = df_filtered["Date"].max()
-            if sel_tr == "3M":
+            if sel_tr == "3 Months":
                 cutoff_date = latest_date - pd.DateOffset(months=3)
-            elif sel_tr == "12M":
+            elif sel_tr == "6 Months":
+                cutoff_date = latest_date - pd.DateOffset(months=6)
+            elif sel_tr == "12 Months":
                 cutoff_date = latest_date - pd.DateOffset(months=12)
             elif sel_tr == "YTD":
                 cutoff_date = pd.Timestamp(year=latest_date.year - 1, month=12, day=31)
-            df_filtered = df_filtered[df_filtered["Date"] >= cutoff_date]
 
-        df_filtered = df_filtered[df_filtered["USD Value"] > 0]
-        
-        st.markdown("")
-        
-        return df_filtered
+            baseline_date = cutoff_date - pd.DateOffset(months=1)
+            df_filtered = df_filtered[df_filtered["Date"] >= baseline_date]
+
+            display_start = cutoff_date
+        else:
+            display_start = None
+
+        return df_filtered, display_start
+
+
