@@ -132,26 +132,28 @@ def apply_filters_historic(df: pd.DataFrame):
         st.session_state["flt_time_range"] = sel_tr
 
         # --- Filtering logic (unchanged)
-        df_filtered = df[df["Crypto Asset"].isin(sel_assets)] if sel_assets else df.iloc[0:0]
+        df_sel = df[df["Crypto Asset"].isin(sel_assets)] if sel_assets else df.iloc[0:0]
 
-        if not df_filtered.empty and sel_tr != "All":
-            latest_date = df_filtered["Date"].max()
+        display_start = None
+        df_for_changes = df_sel
+
+        if not df_sel.empty and sel_tr != "All":
+            latest_date = df_sel["Date"].max()
             if sel_tr == "3 Months":
-                cutoff_date = latest_date - pd.DateOffset(months=3)
+                cutoff_date = latest_date - pd.DateOffset(months=2)   # show 3 incl latest
             elif sel_tr == "6 Months":
-                cutoff_date = latest_date - pd.DateOffset(months=6)
+                cutoff_date = latest_date - pd.DateOffset(months=5)   # show 6 incl latest
             elif sel_tr == "12 Months":
-                cutoff_date = latest_date - pd.DateOffset(months=12)
+                cutoff_date = latest_date - pd.DateOffset(months=11)  # show 12 incl latest
             elif sel_tr == "YTD":
                 cutoff_date = pd.Timestamp(year=latest_date.year - 1, month=12, day=31)
 
-            baseline_date = cutoff_date - pd.DateOffset(months=1)
-            df_filtered = df_filtered[df_filtered["Date"] >= baseline_date]
-
             display_start = cutoff_date
-        else:
-            display_start = None
 
-        return df_filtered, display_start
+            # normal charts -> EXACT window
+            df_sel = df_sel[df_sel["Date"] >= cutoff_date]
 
+            # changes chart -> one baseline month before
+            df_for_changes = df_for_changes[df_for_changes["Date"] >= (cutoff_date - pd.DateOffset(months=1))]
 
+        return df_sel, df_for_changes, display_start

@@ -23,16 +23,20 @@ default_blue = "#66cded"
 WATERMARK_TEXT="cryptotreasurytracker.xyz"
 
 def format_usd(value):
-    if value >= 1_000_000_000_000:
-        return f"${value/1_000_000_000_000:.1f}T"
-    if value >= 1_000_000_000:
-        return f"${value/1_000_000_000:.1f}B"
-    elif value >= 1_000_000:
-        return f"${value/1_000_000:.1f}M"
-    elif value >= 1_000:
-        return f"${value/1_000:.1f}K"
+    sign = "-" if value < 0 else ""
+    abs_val = abs(value)
+
+    if abs_val >= 1_000_000_000_000:
+        return f"{sign}${abs_val/1_000_000_000_000:.1f}T"
+    elif abs_val >= 1_000_000_000:
+        return f"{sign}${abs_val/1_000_000_000:.1f}B"
+    elif abs_val >= 1_000_000:
+        return f"{sign}${abs_val/1_000_000:.1f}M"
+    elif abs_val >= 1_000:
+        return f"{sign}${abs_val/1_000:.1f}K"
     else:
-        return f"${value:.0f}"
+        return f"{sign}${abs_val:.0f}"
+
 
 
 def render_world_map(df, asset_filter, type_filter, value_range_filter):
@@ -300,7 +304,7 @@ def historic_chart(df, by="USD"):
         x='Date',
         y=value_col,
         color='Crypto Asset',
-        text='Text' if by != "USD" else None,
+        #text='Text' if by != "USD" else None,
         custom_data=['Custom Hover'],
         barmode='stack',
         color_discrete_map=COLORS
@@ -315,15 +319,7 @@ def historic_chart(df, by="USD"):
     if by == "USD":
         totals = grouped.groupby('Date')['USD Value'].sum()
         for date, total in totals.items():
-            fig.add_annotation(
-                x=date,
-                y=total,
-                text=(f"${total/1_000_000_000:.1f}B" if total >= 1_000_000_000
-                      else f"${total/1_000_000:.1f}M"),
-                showarrow=False,
-                font=dict(size=14, color='white'),
-                yanchor='bottom'
-            )
+
             fig.update_layout(
                 yaxis=dict(
                     tickprefix="$",
@@ -362,18 +358,19 @@ def historic_chart(df, by="USD"):
     return fig
 
 
-def historic_changes_chart(df, start=None, end=None):
+def historic_changes_chart(df, by="Units", start=None, end=None):
     d = df.copy()
-    d['Holdings (Unit)'] = pd.to_numeric(d['Holdings (Unit)'], errors='coerce')
+    col = "Holdings (Unit)" if by == "Units" else "USD Value"
+    d[col] = pd.to_numeric(d[col], errors='coerce')
 
-    # --- compute on full history ---
+    # --- compute per asset always ---
     monthly = (
-        d.groupby(['Date', 'Crypto Asset'])['Holdings (Unit)']
+        d.groupby(['Date', 'Crypto Asset'])[col]
         .sum()
         .reset_index()
         .sort_values(['Crypto Asset', 'Date'])
     )
-    monthly['Change'] = monthly.groupby('Crypto Asset')['Holdings (Unit)'].diff().fillna(0)
+    monthly['Change'] = monthly.groupby('Crypto Asset')[col].diff().fillna(0)
 
     # --- keep 1 extra prior month for baseline ---
     if start is not None:
@@ -382,31 +379,46 @@ def historic_changes_chart(df, start=None, end=None):
         monthly = monthly[monthly['Date'] >= prev_month]
     if end is not None:
         monthly = monthly[monthly['Date'] <= pd.to_datetime(end)]
-
-    # --- drop the injected baseline from display ---
     if start is not None:
         monthly = monthly[monthly['Date'] >= start]
 
-    # Hover text
-    breakdowns = (
-        monthly.groupby('Date')
-        .apply(lambda g: (
-            f"<b>{g.name.strftime('%B %Y')}</b><br>" +
-            "<br>".join(f"{row['Crypto Asset']}: <b>{row['Change']:+,.0f}</b>"
-                        for _, row in g.iterrows())
-        ))
-        .to_dict()
-    )
+    # --- build hover like historic_chart ---
+    if by == "USD":
+        breakdowns = (
+            monthly.groupby('Date')
+            .apply(lambda d: (
+                f"<b>{d.name.strftime('%B %Y')}</b><br>" +
+                "<br>".join(
+                    f"{row['Crypto Asset']}: <b>{format_usd(row['Change'])}</b>"
+                    for _, row in d.iterrows()
+                ) +
+                f"<br>Total: <b>{format_usd(d['Change'].sum())}</b>"
+            ))
+            .to_dict()
+        )
+    else:  # Units
+        breakdowns = (
+            monthly.groupby('Date')
+            .apply(lambda d: (
+                f"<b>{d.name.strftime('%B %Y')}</b><br>" +
+                "<br>".join(
+                    f"{row['Crypto Asset']}: <b>{row['Change']:+,.0f}</b>"
+                    for _, row in d.iterrows()
+                ) +
+                f"<br>Total: <b>{d['Change'].sum():+,.0f}</b>"
+            ))
+            .to_dict()
+        )
+
     monthly['Custom Hover'] = monthly['Date'].map(breakdowns)
     monthly['Label'] = monthly['Change'].apply(lambda x: f"{x:+,.0f}")
 
-    # --- Bar plot ---
+    # --- Plot bars STACKED (multi-asset if present) ---
     fig = px.bar(
         monthly,
         x='Date',
         y='Change',
         color='Crypto Asset',
-        text='Label',
         custom_data=['Custom Hover'],
         barmode='stack',
         color_discrete_map=COLORS
@@ -417,10 +429,8 @@ def historic_changes_chart(df, start=None, end=None):
         selector=dict(type='bar')
     )
 
-    # --- Trend line with dynamic window ---
-    window = max(2, min(6, len(monthly['Date'].unique())//2))
-    ticker = monthly["Crypto Asset"].iloc[0]
-
+    # --- Trend line over total ---
+    window = max(2, min(6, len(monthly['Date'].unique()) // 2))
     trend = (
         monthly.groupby('Date')['Change'].sum()
         .rolling(window=window, min_periods=1)
@@ -429,7 +439,7 @@ def historic_changes_chart(df, start=None, end=None):
     )
     trend['Hover'] = trend.apply(
         lambda r: f"<b>{r['Date'].strftime('%B %Y')}</b><br>"
-                f"{window}M trend: <b>{r['Change']:+,.0f} {ticker}</b>",
+                  f"{window}M trend: <b>{r['Change']:+,.0f}{'' if by=='Units' else ' $'}</b>",
         axis=1
     )
     fig.add_scatter(
@@ -447,13 +457,16 @@ def historic_changes_chart(df, start=None, end=None):
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
         xaxis=dict(fixedrange=True),
-        yaxis=dict(fixedrange=True, title="Net Change (Units)"),
+        yaxis=dict(
+            fixedrange=True,
+            title="Net Change (Units)" if by == "Units" else "Net Change (USD)",
+            tickprefix="" if by == "Units" else "$"
+        ),
         xaxis_title=None,
         legend_title_text=None,
     )
     fig.update_xaxes(dtick="M1", tickformat="%b %Y")
 
-    # Watermark
     fig.add_annotation(
         text=WATERMARK_TEXT,
         x=0.5, y=0.95, xref="paper", yref="paper",
@@ -463,8 +476,6 @@ def historic_changes_chart(df, start=None, end=None):
     )
 
     return fig
-
-
 
 
 def _first_day_next_month(dt: pd.Timestamp) -> pd.Timestamp:
@@ -516,6 +527,7 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
     if len(selected_assets) == 1:
         a = selected_assets[0]
         s = (hist[hist["Crypto Asset"] == a].sort_values("Date")[["Date","USD Value","Holdings (Unit)"]])
+        s["usd_fmt"] = s["USD Value"].apply(format_usd)
 
         # Units area (left axis)
         fig.add_trace(go.Scatter(
@@ -533,7 +545,8 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
             mode="lines",
             line=dict(width=3, color=COLORS.get(a, "#ff9393")),
             name=f"{a} Total USD Value",
-            hovertemplate="<b>%{x|%b %Y}</b><br>USD: <b>%{y:$,.0f}</b><extra></extra>",
+            hovertext=s["usd_fmt"],
+            hovertemplate="<b>%{x|%b %Y}</b><br>USD: <b>%{hovertext}</b><extra></extra>",
             yaxis="y"
         ))
         fig.update_layout(
@@ -559,28 +572,16 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
 
     else:
         # Multi-asset → one total USD line + per-asset USD lines
-        series = totals.reset_index().sort_values("Date")
-        # total: solid, thicker
+        series = totals.sort_values("Date")
+        series["usd_fmt"] = series["USD Value"].apply(format_usd)
         fig.add_trace(go.Scatter(
             x=series["Date"], y=series["USD Value"],
             mode="lines",
-            line=dict(width=3, dash="solid", color="#ffffff"),
+            line=dict(width=5, dash="solid", color=default_blue),
             name="Total",
-            hovertemplate="<b>%{x|%b %Y}</b><br>Total: <b>%{y:$,.0f}</b><extra></extra>",
+            hovertext=series["usd_fmt"],
+            hovertemplate="<b>%{x|%b %Y}</b><br>Total: <b>%{hovertext}</b><extra></extra>",
         ))
-        # per-asset lines: thinner, dashed, asset colors
-        for a in selected_assets:
-            s = (hist[hist["Crypto Asset"] == a]
-                .groupby("Date", as_index=False)["USD Value"].sum()
-                .sort_values("Date"))
-            fig.add_trace(go.Scatter(
-                x=s["Date"], y=s["USD Value"],
-                mode="lines",
-                line=dict(width=1.8, dash="dot", color=COLORS.get(a, "#888")),
-                name=f"{a}",
-                hovertemplate="<b>%{x|%b %Y}</b><br>"+f"{a}: <b>%{{y:$,.0f}}</b><extra></extra>",
-            ))
-
 
     fig.update_layout(
         margin=dict(t=50, b=0, l=40, r=20),
@@ -621,23 +622,21 @@ def dominance_area_chart_usd(df_historic: pd.DataFrame, current_df: pd.DataFrame
 
     cum = None
     for i, a in enumerate([x for x in ASSETS_ORDER if x in selected_assets]):
-        top = (usds[a] if cum is None else (cum + usds[a]))
-        cd = list(zip(usds[a].values, totals_usd.values))
+        top = usds[a] if cum is None else (cum + usds[a])
+        # Format each point with format_usd
+        hover_vals = usds[a].apply(format_usd)
+
         fig.add_trace(go.Scatter(
-            x=usds.index, y=top.values,
+            x=usds.index,
+            y=top.values,
             mode="lines",
             line=dict(width=0.0, color=COLORS.get(a, "#888")),
             fill=("tozeroy" if i == 0 else "tonexty"),
             name=a,
-            hovertemplate=(
-                "<b>%{x|%b %Y}</b><br>"
-                f"{a}: <b>%{{customdata[0]:$,.0f}}</b>"
-                "<extra></extra>"
-            ),
-            customdata=cd
+            hovertext=hover_vals,
+            hovertemplate="<b>%{x|%b %Y}</b><br>" + f"{a}: <b>%{{hovertext}}</b><extra></extra>",
         ))
         cum = top
-
 
     fig.update_traces(opacity=0.95)
     fig.update_layout(
@@ -691,22 +690,6 @@ def holdings_by_entity_type_bar(df):
         color_discrete_map=COLORS,
         category_orders={'Entity Type': sorted_types}  # ✅ This line is key
     )
-
-
-    # Add total USD value as annotation above each full bar
-    totals = grouped.groupby('Entity Type', observed=False)['USD Value'].sum()
-    for i, entity_type in enumerate(totals.index):
-        fig.add_annotation(
-            x=entity_type,
-            y=totals[entity_type],
-            text=(
-                f"${totals[entity_type]/1_000_000_000:.1f}B" if totals[entity_type] >= 1_000_000_000
-                else f"${totals[entity_type]/1_000_000:.1f}M"
-            ),
-            showarrow=False,
-            font=dict(size=14, color='white'),
-            yanchor='bottom'
-        )
 
     fig.add_annotation(
         text=WATERMARK_TEXT,
@@ -1013,7 +996,7 @@ def top_countries_by_usd_value(df):
             y=country,
             text=format_usd(total),
             showarrow=False,
-            font=dict(size=18, color='white'),
+            font=dict(size=14, color='white'),
             xanchor='left',
             yanchor='middle'
         )
@@ -1107,19 +1090,6 @@ def entity_ranking(df, by="USD", top_n=10):
         color_discrete_map=COLORS,
         category_orders={'Entity Name': sorted_entities}
     )
-
-    totals = grouped.groupby('Entity Name', observed=False)[value_col].sum()
-    for entity in totals.index:
-        label = format_usd(totals[entity]) if by == "USD" else f"{int(totals[entity]):,}"
-        fig.add_annotation(
-            x=entity,
-            y=totals[entity],
-            text=label,
-            showarrow=False,
-            font=dict(size=14, color='white'),
-            xanchor='center',
-            yanchor='bottom'
-        )
 
     fig.add_annotation(
         text=WATERMARK_TEXT,

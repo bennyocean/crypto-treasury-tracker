@@ -24,7 +24,7 @@ def render_sidebar():
                                     "Dashboard",
                                     "Treasury Pipeline",
                                     "Global Map",
-                                    "Trends & History",
+                                    "History & Trends",
                                     "Top Holders",
                                     "Distribution",
                                     "Concentration",
@@ -146,7 +146,7 @@ def render_sidebar():
         log_page_once("world_map")
         global_.render_global()
 
-    if section == "Trends & History":
+    if section == "History & Trends":
         log_page_once("history")
         historic.render_historic_holdings()
 

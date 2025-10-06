@@ -408,9 +408,6 @@ def _year_end_total(df: pd.DataFrame, year: int, value_col: str):
         return None
     return float(ydf[value_col].sum())
 
-def _fmt_change(x: float):
-    sign = "▲" if x > 0 else ("▼" if x < 0 else "—")
-    return f"{x:+.1f}% {sign}"
 
 def _pct_change(old, new):
     """Return float % change or None if invalid baseline."""
@@ -418,11 +415,6 @@ def _pct_change(old, new):
         return None
     return (new - old) / old * 100.0
 
-def _fmt_delta(x: float) -> str:
-    """Format a % for st.metric(delta=...) or return None."""
-    if x is None:
-        return None
-    return f"{x:+.1f}%"
 
 def _fmt_pct_value(x, na="N/A"):
     """Render a percentage or N/A if baseline missing."""
@@ -809,18 +801,27 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
 
         # Chart
         fig = go.Figure()
+        view["price_hover"] = view["price_effect"].apply(_fmt_usd)
+        view["units_hover"] = view["units_effect"].apply(_fmt_usd)
+
         fig.add_bar(
             name="Price effect",
-            x=view["Date"], y=view["price_effect"],
+            x=view["Date"],
+            y=view["price_effect"],
             marker_color=bar_color_price,
-            hovertemplate="Date: %{x|%b %Y}<br>Price: %{y:$,.0f}<extra></extra>",
+            hovertext=view["price_hover"],  # pass formatted strings
+            hovertemplate="Date: %{x|%b %Y}<br>Price: %{hovertext}<extra></extra>",
         )
+
         fig.add_bar(
             name="Units effect",
-            x=view["Date"], y=view["units_effect"],
+            x=view["Date"],
+            y=view["units_effect"],
             marker_color=bar_color_units,
-            hovertemplate="Date: %{x|%b %Y}<br>Units: %{y:$,.0f}<extra></extra>",
+            hovertext=view["units_hover"],
+            hovertemplate="Date: %{x|%b %Y}<br>Units: %{hovertext}<extra></extra>",
         )
+
         fig.update_layout(
             barmode="relative",
             height=360,
@@ -845,3 +846,4 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
 
         st.caption("Note: Decomposition uses **asset-level monthly aggregates**; it respects the *filters (assets + time)*. "
                    "Holder Type and Country filters are not applied unless history exists at that granularity.")
+        
