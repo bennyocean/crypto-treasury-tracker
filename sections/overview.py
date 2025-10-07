@@ -36,7 +36,7 @@ TRUE_DAT_WHITELIST = {
             "kheAI Commerce", "ZOOZ Power Ltd."}, 
     "ETH": {"BitMine Immersion Technologies, Inc.", "SharpLink Gaming", "The Ether Machine", "ETHZilla Corporation", "FG Nexus", "GameSquare Holdings", "Centaurus Energy Inc.", "Ethero"},
     "SOL": {"Forward Industries, Inc.", "Upexi, Inc.", "DeFi Development Corp.", "Sharps Technology, Inc.", "Classover Holdings, Inc.", "Sol Strategies, Inc.", "Sol Treasury Corp.",
-            "SOL Global Investments Corp.", "Helius Medical Technologies, Inc.", "Lion Group Holding Ltd."},
+            "SOL Global Investments Corp.", "Solana Company", "Lion Group Holding Ltd."},
     "LTC": {"Lite Strategy, Inc." , "Luxxfolio Holdings Inc."},
     "XRP": set(),
     "SUI": {"Lion Group Holding Ltd."},

@@ -65,7 +65,7 @@ def render_historic_holdings():
     with row1_col2:
         with st.container(border=False):
             st.markdown(
-                "#### Monthly Net Flows & Trends", 
+                "#### Monthly Changes, Net Flows & Trends", 
                 help="Month-over-month net change in holdings; Units are always per asset, USD can aggregate."
             )
 
