@@ -33,7 +33,7 @@ TRUE_DAT_WHITELIST = {
     "BTC": {"Strategy Inc.", "Twenty One Capital (XXI)", "Bitcoin Standard Treasury Company", "Metaplanet Inc.", "ProCap Financial, Inc", "Capital B", "H100 Group", 
             "Bitcoin Treasury Corporation", "Treasury B.V.", "American Bitcoin Corp.", "Parataxis Holdings LLC", "Strive Asset Management", "ArcadiaB", "Cloud Ventures",
             "Stacking Sats, Inc.", "Melanion Digital", "Sequans Communications S.A.", "Africa Bitcoin Corporation", "Empery Digital Inc.", "B HODL", "OranjeBTC", "Sobtree",
-            "kheAI Commerce", "ZOOZ Power Ltd.", "Semler Scientific, Inc."}, 
+            "kheAI Commerce", "ZOOZ Power Ltd.", "Semler Scientific, Inc.", "aifinyo AG"}, 
     "ETH": {"BitMine Immersion Technologies, Inc.", "SharpLink Gaming", "The Ether Machine", "ETHZilla Corporation", "FG Nexus", "GameSquare Holdings", "Centaurus Energy Inc.", "Ethero"},
     "SOL": {"Forward Industries, Inc.", "Upexi, Inc.", "DeFi Development Corp.", "Sharps Technology, Inc.", "Classover Holdings, Inc.", "Sol Strategies, Inc.", "Sol Treasury Corp.",
             "SOL Global Investments Corp.", "Solana Company", "Lion Group Holding Ltd.", "Solmate Infrastructure"},
