@@ -336,7 +336,7 @@ def render_kpis(df, snapshots_df=None):
             st.metric(
                 label="Share of Supply (Top 5)",
                 value="",
-                help="Top five crypto assets ranked by total treasury holdings as a share of their circulating supply."
+                help="Top five crypto assets ranked by aggregated treasury holdings as a share of their circulating supply."
             )
 
             fig_supply = build_supply_share_bar(df_usd, sort_mode = "usd")
