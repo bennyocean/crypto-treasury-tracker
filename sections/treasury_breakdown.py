@@ -5,7 +5,7 @@ from modules.ui import render_plotly
 
 def render_treasury_breakdown():
     #st.markdown("#### Treasury Breakdown & Distribution")
-    st.title("Treasury Breakdown & Distribution")
+    #st.title("Treasury Breakdown & Distribution")
     
     df = st.session_state["data_df"]
     df_filtered = apply_filters(df)
@@ -46,17 +46,17 @@ def render_treasury_breakdown():
     st.markdown("")
 
     # Charts row
-    row1_col1, row1_col2, row1_col3= st.columns([1, 1, 1])
+    row1_col1, row1_col2= st.columns(2)
 
     with row1_col1:
-        with st.container(border=False):
-            st.markdown("#### Holdings by Holder Type", help="USD value of selected crypto holdings by entity category.")
+        with st.container(border=True):
+            st.markdown("#### Treasury Type Ranking", help="Ranking of treasury holder types by aggregated USD value.")
 
             render_plotly(charts.holdings_by_entity_type_bar(df_filtered), "holdings_by_entity_type")
 
     with row1_col2:
-        with st.container(border=False):
-            st.markdown("#### Crypto Treasury Holder Share",help="Share of entities by aggregated USD value or total count per entity type. Other includes protocols, L1/L2 networks, AI agents, and community-led projects")
+        with st.container(border=True):
+            st.markdown("#### Holder Distribution",help="Share of treasury holders by aggregated USD value or total count per entity type. Other includes DeFi protocols, L1/L2 networks, AI agents, and community-led projects")
 
             mode_lbl = st.segmented_control(
                 "Metric",
@@ -68,33 +68,4 @@ def render_treasury_breakdown():
 
             mode_arg = "count" if mode_lbl == "Holder Count" else "usd"
 
-            render_plotly(charts.entity_type_distribution_pie(df_filtered, mode=mode_arg),
-                        "entity_type_distribution")
-
-    with row1_col3:
-        with st.container(border=False):
-            st.markdown("#### Top 10 Countries",help="Countries with the largest reported crypto treasury holdings, ranked by the selected metric. Note: 'Decentralized' refers to globally running networks and protocols without a headquarter and/or legal registration.")
-
-            display_mode = st.segmented_control("Display mode", options=["USD Value", "Holder Count"], default="Holder Count", label_visibility="collapsed")
-
-            if display_mode == "Holder Count":
-                fig_country = charts.top_countries_by_entity_count(df_filtered)
-            else:
-                fig_country = charts.top_countries_by_usd_value(df_filtered)
-
-            render_plotly(fig_country, "top_5_countries")
-
-    st.divider()
-
-    with st.container(border=False):
-        st.markdown(
-            "#### Crypto Treasury Treemap",
-            help=" Shows area size based on USD value. Switch between entity- and regional-level views."
-        )
-        layout_choice = st.segmented_control(
-            "Treemap layout",
-            options=["Holder Distribution", "Geographic Distribution"],
-            default="Holder Distribution", label_visibility="collapsed"
-        )
-        mode = "country_type" if "Geographic Distribution" in layout_choice else "type_entity"
-        render_plotly(charts.treemap_composition(df_filtered, mode=mode), "treemap_composition")
+            render_plotly(charts.entity_type_distribution_pie(df_filtered, mode=mode_arg), "entity_type_distribution")

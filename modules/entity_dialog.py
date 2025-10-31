@@ -41,6 +41,12 @@ def show_entity_dialog(
     about_text: str = "-",
     website: str = "-",
 
+    # new pipeline fields
+    status: str = "Active",
+    target_usd: str = "–",
+    target_units: str = "–",
+    source_url: str = "",
+
     # cost/price (single-asset fallbacks)
     current_price=np.nan,
     avg_cost_per_unit=np.nan,
@@ -290,8 +296,21 @@ def show_entity_dialog(
                 chips_html += _chip_outline(f"Industry: {industry if industry else '–'}")
                 # DATCO indicator (outlined)
                 if is_datco:
-                    chips_html += _chip_outline("DATCO")
+                    chips_html += _chip_outline("DAT Wrapper")
                 st.markdown(chips_html, unsafe_allow_html=True)
+
+                # --- Pipeline status & targets row (right under the chips) ---
+                _status_norm = str(status).strip().lower()
+                _status_pill = {
+                    "active": ("Active", "#2ecc71"),
+                    "pending_funded": ("Funded", "#f1c40f"),
+                    "pending_announced": ("Announced", "#c0eef1"),
+                    "inactive": ("Inactive", "#f12e2e"),
+                }.get(_status_norm, ("Active", "#2ecc71"))
+
+                _status_lbl, _status_color = _status_pill
+
+
 
             with subcolR:
 

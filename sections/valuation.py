@@ -5,10 +5,9 @@ import pandas as pd
 from modules.filters import apply_filters
 from modules.ui import render_plotly
 from modules import charts
-from sections.overview import TRUE_DAT_WHITELIST
 
 def render_valuation_insights():
-    st.title("Crypto Treasury Valuation Insights")
+    #st.title("Crypto Treasury Valuation Insights")
 
     df = st.session_state["data_df"]
     df_filtered = apply_filters(df)
@@ -25,7 +24,6 @@ def render_valuation_insights():
     snap = snap[snap["MarketCap"] > 0]
     total_mcap = float(snap["MarketCap"].sum())
     total_nav  = float(snap["CryptoNAV"].sum())
-    exposure   = (total_nav / total_mcap * 100.0) if total_mcap > 0 else 0.0
 
     # Premium (portfolio-weighted if available)
     prem = st.session_state.get("has_premium", False)
@@ -37,104 +35,25 @@ def render_valuation_insights():
     else:
         pw_prem = np.nan
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        with st.container(border=True):
-            st.metric("Total Corporate Market Cap (selected)", f"${total_mcap:,.0f}", help="Aggregate market capitalization of all selected corporates. Provides the denominator for treasury exposure analysis.")
-    with col2:
-        with st.container(border=True):
-            st.metric("Crypto-NAV (selected)", f"${total_nav:,.0f}", help="Aggregate USD value of crypto assets held by selected corporates, i.e., their 'onchain NAV'.")
 
-    with col3:
-        with st.container(border=True):
-            st.metric("Portfolio Exposure (cap-weighted)", f"{exposure:.1f}%", help="Share of corporate market cap represented by crypto assets. Higher values indicate greater market sensitivity to crypto price movements.")
-    
     st.markdown("")
 
-    # Row of charts
-    c1, c2 = st.columns([1,1])
-    
-    with c1:
-        with st.container(border=False):
-            st.markdown("#### Exposure Ladder", help="Treasury as a % of Market Cap; higher value means more crypto-sensitive.")
-            sub_c1, sub_c2 = st.columns([3,1])
-
-            top_n = sub_c1.number_input(
-                "Top N (by Crypto Exposure)", 5, 50, 20, key="exp_topn",
-                help="Number of entities to display, sorted by Exposure (%)."
-            )
-            datco_only_exp = sub_c2.checkbox(
-                "DATCOs only", value=True, key="ladder_datco_only",
-                help="Restrict to Digital Asset Treasury Companies only."
-            )
-
-            # build dataframe AFTER controls, then render regardless of checkbox
-            df_ladder = df_filtered.copy()
-            if datco_only_exp:
-                assets_sel = sorted(df_ladder["Crypto Asset"].dropna().unique().tolist())
-                active_whitelist = set().union(*(TRUE_DAT_WHITELIST.get(a, set()) for a in assets_sel)) if assets_sel else set()
-                names = df_ladder["Entity Name"].astype(str)
-                df_ladder = df_ladder[names.isin(active_whitelist)]
-
-            if df_ladder.empty:
-                st.info("No data for the current selection.")
-            else:
-                fig1 = charts.exposure_ladder_bar(df_ladder, top_n=int(top_n))
-                render_plotly(fig1, "exposure_ladder")
-
-
-    with c2:
-        with st.container(border=False):
-            st.markdown("#### Market Cap Decomposition", help="Stacked Market Cap split into Crypto-NAV and a residual Core Proxy.")
-            
-            sub_c3, sub_c4 = st.columns([3,1])
-
-            top_n2 = sub_c3.number_input("Top N (by Market Cap)", 5, 50, 20, key="mcapdec_topn",
-                                    help="Number of entities to display, sorted by Market Cap (USD).")
-
-            datco_only_dec = sub_c4.checkbox("DATCOs only", value=True, key="dec_datco_only",
-                                        help="Restrict to Digital Asset Treasury Companies only.")
-
-            df_dec = df_filtered.copy()
-            if datco_only_dec:
-                assets_sel = sorted(df_dec["Crypto Asset"].dropna().unique().tolist())
-                active_whitelist = set().union(*(TRUE_DAT_WHITELIST.get(a, set()) for a in assets_sel)) if assets_sel else set()
-                names = df_dec["Entity Name"].astype(str)
-                df_dec = df_dec[names.isin(active_whitelist)]
-
-            if df_dec.empty:
-                st.info("No data for the current selection.")
-            else:
-                fig3 = charts.mcap_decomposition_bar(df_dec, top_n=top_n2)
-                render_plotly(fig3, "mcap_decomposition")
-
-
-    # Optional weighted premium info
-    if np.isfinite(pw_prem):
-        st.caption(f"Weighted Premium to MNAV (by Market Cap): **{pw_prem:.1f}%**")
-
-    st.divider()
-
     # --- mNAV comparison ---
-    with st.container(border=False):
-        st.markdown("#### mNAV Benchmarking", help="Premium/discount vs the crypto treasury. 1× is parity; above 1× = premium, below 1× = discount.")
+    with st.container(border=True):
+        st.markdown("#### mNAV Benchmarking", help="Premium/discount vs the crypto treasury holding value. 1× is parity; above 1× = premium, below 1× = discount.")
         # Controls row
         c0, c1, c2, c3 = st.columns([1,1,1,1])
         cap_outliers = c2.checkbox("Cap mNAV (exclude outliers)", value=False, help="Drop extreme mNAV to make comparisons readable.")
         max_cap = c3.number_input("Max mNAV (×)", min_value=1, max_value=200, value=25, step=1,
                                 help="Applied only when 'Cap mNAV' is on.", disabled=not cap_outliers)
 
-        top_n_mnav = c0.number_input("Top N (by Crypto-NAV)", 5, 50, 20, help="Pick companies by largest Crypto-NAV, then sort by mNAV for display.")
-        datco_only_mnav = c1.checkbox("DATCOs only (mNAV)", value=True, help="Limit to verified Direct-Asset Treasury Companies.")
+        top_n_mnav = c0.number_input("Top N (by Crypto-NAV)", 5, 50, 20, help="Pick companies by largest crypto-NAV, then sort by mNAV for display.")
+        datco_only_mnav = c1.checkbox("DAT Wrappers (mNAV)", value=True, help="Limit to verified Direct Asset Treasury Companies.")
 
         # Filter dataset for chart/KPIs
         df_mnav = df_filtered.copy()
         if datco_only_mnav:
-            assets_sel = sorted(df_mnav["Crypto Asset"].dropna().unique().tolist())
-            active_whitelist = set().union(*(TRUE_DAT_WHITELIST.get(a, set()) for a in assets_sel)) if assets_sel else set()
-            names = df_mnav["Entity Name"].astype(str)
-            df_mnav = df_mnav[names.isin(active_whitelist)]
-
+            df_mnav = df_mnav[df_mnav["DAT"].astype(int) == 1]
 
         # Compute mNAV series for KPIs (respect the same cap rule)
         snap_for_kpi = charts._entity_snapshot(df_mnav).dropna(subset=["MarketCap"])
@@ -195,16 +114,77 @@ def render_valuation_insights():
             )
             render_plotly(fig_mnav, "mnav_comparison")
 
-    st.divider()
+    with st.container(border=True):
+
+        st.markdown("#### Premium vs Scale of DAT Wrappers", help="This chart visualizes how market size relates to valuation deviation (size effect using log USD Value)")
+
+        render_plotly(charts.premium_vs_size(df_filtered), "premium_vs_size_chart")
+
+    # Row of charts
+    c1, c2 = st.columns([1,1])
+    
+    with c1:
+        with st.container(border=True):
+            st.markdown("#### Exposure Ladder", help="Treasury as a % of Market Cap; higher value means more sensitive to sudden changes in crypto prices.")
+            sub_c1, sub_c2 = st.columns([2,1])
+
+            top_n = sub_c1.number_input(
+                "Top N (by Crypto Exposure)", 5, 50, 20, key="exp_topn",
+                help="Number of entities to display, sorted by Exposure (%)."
+            )
+            datco_only_exp = sub_c2.checkbox(
+                "DAT Wrappers", value=True, key="ladder_datco_only",
+                help="Restrict to Digital Asset Treasury Wrappers only."
+            )
+
+            # build dataframe AFTER controls, then render regardless of checkbox
+            df_ladder = df_filtered.copy()
+            if datco_only_exp:
+                df_ladder = df_ladder[df_ladder["DAT"].astype(int) == 1]
+
+            if df_ladder.empty:
+                st.info("No data for the current selection.")
+            else:
+                fig1 = charts.exposure_ladder_bar(df_ladder, top_n=int(top_n))
+                render_plotly(fig1, "exposure_ladder")
+
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("#### Market Cap Decomposition", help="Stacked Market Cap split into Crypto-NAV and a residual Core Proxy.")
+            
+            sub_c3, sub_c4 = st.columns([2,1])
+
+            top_n2 = sub_c3.number_input("Top N (by Market Cap)", 5, 50, 20, key="mcapdec_topn",
+                                    help="Number of entities to display, sorted by Market Cap (USD).")
+
+            datco_only_dec = sub_c4.checkbox("DAT Wrappers", value=True, key="dec_datco_only",
+                                        help="Restrict to Digital Asset Treasury Companies only.")
+
+            df_dec = df_filtered.copy()
+            if datco_only_dec:
+                df_dec = df_dec[df_dec["DAT"].astype(int) == 1]
+
+            if df_dec.empty:
+                st.info("No data for the current selection.")
+            else:
+                fig3 = charts.mcap_decomposition_bar(df_dec, top_n=top_n2)
+                render_plotly(fig3, "mcap_decomposition")
+
+
+    # Optional weighted premium info
+    if np.isfinite(pw_prem):
+        st.caption(f"Weighted Premium to MNAV (by Market Cap): **{pw_prem:.1f}%**")
+
 
     def _shock_controls(df_filtered: pd.DataFrame):
         assets = sorted(df_filtered["Crypto Asset"].dropna().unique().tolist())
         st.markdown("")
 
-        c1, c2, c3, c4 = st.columns([1,1,1,0.5])
+        c1, c2, c3, c4 = st.columns(4)
 
         datco_only = c4.checkbox(
-            "DATCOs only",
+            "DAT Wrappers",
             value=True,
             help="Restrict to verified Direct-Asset Treasury Companies."
         )        
@@ -232,21 +212,17 @@ def render_valuation_insights():
                 ) / 100.0
             return {"uniform": None, "overrides": shocks}, top_n, datco_only
 
-    with st.container(border=False):
-        st.markdown("#### Price Sensitivity to Crypto (NAV-Implied β)", help="Computes the Δ Market Cap (Equity) implied by crypto price shocks. Assumes 1:1 pass-through of Crypto-NAV changes; core business unchanged; not a historical beta.")
+    with st.container(border=True):
+        st.markdown("#### DAT Leverage Simulation (NAV-Implied β)", help="Computes the Δ Market Cap (Equity) implied by crypto price shocks. Assumes 1:1 pass-through of Crypto-NAV changes; core business unchanged; not a historical beta.")
 
         cfg, top_n, datco_only = _shock_controls(df_filtered)
 
         df_sens = df_filtered.copy()
         if datco_only:
-            assets_sel = sorted(df_sens["Crypto Asset"].dropna().unique().tolist())
-            active_whitelist = set().union(*(TRUE_DAT_WHITELIST.get(a, set()) for a in assets_sel)) if assets_sel else set()
-            names = df_sens["Entity Name"].astype(str)
-            df_sens = df_sens[names.isin(active_whitelist)]
-
+            df_sens = df_sens[df_sens["DAT"].astype(int) == 1]
 
         if df_sens.empty:
-            st.info("No DATCOs in the current selection.")
+            st.info("No DAT Wrappers in the current selection.")
         else:
             if cfg["overrides"] is not None:
                 fig = charts.corporate_sensitivity_bar(df_sens, per_asset_shocks=cfg["overrides"], top_n=top_n)

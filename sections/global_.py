@@ -1,71 +1,75 @@
 import streamlit as st
-from modules.charts import render_world_map
 from modules.ui import render_plotly
 from analytics import log_filter_if_changed
+from modules.filters import apply_filters
+from modules import charts
 
 
 def render_global():
-    st.title("Global Crypto Treasury Map")
+    #st.title("Global Crypto Treasury Map")
+
     df = st.session_state["data_df"]
 
-    st.markdown("")
+    filtered = apply_filters(df)
 
-    with st.container(border=False):
-        c1, c2, c3 = st.columns([2, 1, 1])
+    value_opts = ["All", "0–100M", "100M–1B", ">1B"]
+    sel_v = st.selectbox(
+        "Value Range (USD)",
+        options=value_opts,
+        key="flt_value_range_global"
+    )
+    st.session_state["flt_value_range"] = sel_v
 
-        asset_opts   = st.session_state["opt_assets"]
-        type_opts    = st.session_state["opt_entity_types"]
-        value_opts   = ["All", "0–100M", "100M–1B", ">1B"]
+    if sel_v != "All" and "USD Value" in filtered.columns:
+        vals = filtered["USD Value"].astype(float)
+        if sel_v == "0–100M":
+            filtered = filtered[vals.between(0, 100_000_000)]
+        elif sel_v == "100M–1B":
+            filtered = filtered[vals.between(100_000_000, 1_000_000_000)]
+        elif sel_v == ">1B":
+            filtered = filtered[vals > 1_000_000_000]
 
-        # assets
-        if "ui_assets_map" not in st.session_state:
-            st.session_state["ui_assets_map"] = st.session_state.get("flt_assets", asset_opts)
-        sel_assets = c1.pills(
-            "Select Crypto Asset(s)",
-            options=asset_opts,
-            selection_mode="multi",
-            key="ui_assets_map",
-            label_visibility="visible",
-            width="stretch",
-        )
-        st.session_state["flt_assets"] = sel_assets
+    log_filter_if_changed("global_summary", {
+        "asset": st.session_state.get("flt_asset_choice", "All Assets"),
+        "entity_type": st.session_state.get("flt_entity_type", "All"),
+        "value_range": sel_v or "All",
+    })
 
-        # entity type
-        if "ui_entity_type_map" not in st.session_state:
-            st.session_state["ui_entity_type_map"] = st.session_state.get("flt_entity_type", "All")
-        sel_et = c2.selectbox(
-            "Holder Type",
-            options=type_opts,
-            key="ui_entity_type_map"   # no index on reruns
-        )
-        st.session_state["flt_entity_type"] = sel_et
-
-        # value bucket
-        if "ui_value_range_map" not in st.session_state:
-            st.session_state["ui_value_range_map"] = st.session_state.get("flt_value_range", "All")
-        sel_v = c3.selectbox(
-            "Value Range (USD)",
-            options=value_opts,
-            key="ui_value_range_map"   # no index on reruns
-        )
-        st.session_state["flt_value_range"] = sel_v
-    
-        # Log filters if changed
-        log_filter_if_changed("global_summary", {
-            "asset": sel_assets or ["All"],
-            "entity_type": sel_et or "All",
-            "value_range": sel_v or "All",
-        })
-
-    st.markdown("")
-
-    # Global Map
-    #with st.container(border=True):
-    #st.markdown("#### Global Crypto Treasury Map", help="Geographic distribution of crypto treasuries, filtered by crypto asset, entity type, and value range.")
-
-    if not sel_assets:
-        st.info("Select at least one Crypto Asset to display the map")
+    # --- render map ---
+    if filtered.empty:
+        st.info("No entities found for the selected filters.")
     else:
-        fig = render_world_map(df, sel_assets, sel_et, sel_v)
+        assets = filtered["Crypto Asset"].dropna().unique().tolist()
+        fig = charts.render_world_map(filtered, assets, st.session_state.get("flt_entity_type"), sel_v)
         if fig is not None:
-            render_plotly(fig, "crypto_reserve_world_map", extra_config={"scrollZoom": False})
+
+            #row1_col1, row1_col2= st.columns(2)
+
+            with st.container(border=True):
+                st.markdown(
+                    "#### World Map",
+                    help=" Shows global distribution based on USD value."
+                )
+                render_plotly(fig, "crypto_reserve_world_map", extra_config={"scrollZoom": False})
+
+        #with row1_col2:
+            with st.container(border=True):
+                st.markdown("#### Top 10 Countries",help="Countries with the largest reported crypto treasury holdings, ranked by the selected metric. Note: 'Decentralized' refers to globally running networks and protocols without a headquarter and/or legal registration.")
+
+                display_mode = st.segmented_control("Display mode", options=["USD Value", "Holder Count"], default="Holder Count", label_visibility="collapsed")
+
+                if display_mode == "Holder Count":
+                    fig_country = charts.top_countries_by_entity_count(filtered)
+                else:
+                    fig_country = charts.top_countries_by_usd_value(filtered)
+
+                render_plotly(fig_country, "top_5_countries")
+
+            with st.container(border=True):
+
+                st.markdown(
+                    "#### Regional Distribution",
+                    help=" Shows area size based on USD value. Switch between entity- and regional-level views."
+                )
+                
+                render_plotly(charts.treemap_composition(filtered, mode="country_type"), "treemap_composition")

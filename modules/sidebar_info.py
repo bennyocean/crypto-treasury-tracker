@@ -10,10 +10,10 @@ from analytics import log_page_once
 def render_sidebar():
 
     st.sidebar.image("assets/ctt-logo.svg", width=250)
-    st.sidebar.subheader("_Benchmark Digital Asset Treasuries—All in One Place!_")
+    st.sidebar.markdown("_The most comprehensive Digital Asset Treasury Terminal!_")
 
     # global top header on every page
-    render_header()
+    #render_header()
 
     # Crypto Reserve Report Link
     render_subscribe_cta()
@@ -22,13 +22,13 @@ def render_sidebar():
     section = st.sidebar.radio("Explore The Tracker", 
                                [
                                     "Dashboard",
-                                    "Treasury Pipeline",
-                                    "Global Map",
-                                    "History & Trends",
-                                    "Top Holders",
-                                    "Distribution",
-                                    "Concentration",
-                                    "Valuation Insights",
+                                    #"Treasury Pipeline",
+                                    "Market Cap & Flows",
+                                    "Treasury Ranking",
+                                    "Regional Analysis",
+                                    "Holder Analysis",
+                                    "DAT Analysis",
+                                    "Concentration Analysis",
                                     "About"
                                 ],
                                 #default = "Dashboard",
@@ -39,29 +39,33 @@ def render_sidebar():
 
     # --- Reset filters ---
     if st.sidebar.button("Reset Filters", type="primary", width="stretch"):
-        # state defaults
-        st.session_state["flt_assets"] = st.session_state["opt_assets"]
-        st.session_state["flt_entity_type"] = "All"
-        st.session_state["flt_country"] = "All"
-        st.session_state["flt_value_range"] = "All"
-        st.session_state["flt_time_range"] = "All"
+        st.session_state["flt_assets"]       = st.session_state["opt_assets"]
+        st.session_state["flt_entity_type"]  = "All"
+        st.session_state["flt_country"]      = "All"
+        st.session_state["flt_value_range"]  = "All"
+        st.session_state["flt_time_range"]   = "All"
+        st.session_state["flt_asset_choice"] = "All assets combined"
 
-        # clear UI widget keys so widgets visually reset
+        # bump UI revision so widget keys change on next render
+        st.session_state["ui_rev"] = st.session_state.get("ui_rev", 0) + 1
+
+        # clear old UI keys so they visually snap back
         for k in [
-            "ui_assets", "ui_entity_type", "ui_country",
-            "ui_assets_map", "ui_entity_type_map", "ui_value_range_map",
-            "ui_assets_hist", "ui_time_range_hist",
+            "ui_asset_choice_0","ui_asset_choice_1","ui_asset_choice_2",  # harmless if absent
+            "ui_assets","ui_entity_type","ui_country",
+            "ui_assets_map","ui_entity_type_map","ui_value_range_map",
+            "ui_assets_hist","ui_time_range_hist",
         ]:
-            if k in st.session_state:
-                del st.session_state[k]
+            st.session_state.pop(k, None)
 
         st.rerun()
+
 
     st.markdown(
         """
         <style>
             .block-container {
-                padding-top: 3.8rem !important;
+                padding-top: 2.8rem !important;
             }
         </style>
         """,
@@ -138,31 +142,31 @@ def render_sidebar():
         log_page_once("overview")
         overview.render_overview()
 
-    if section == "Treasury Pipeline":
-        log_page_once("planned")
-        planned.render_planned()
+    """    if section == "Treasury Pipeline":
+            log_page_once("planned")
+            planned.render_planned()"""
 
-    if section == "Global Map":
+    if section == "Regional Analysis":
         log_page_once("world_map")
         global_.render_global()
 
-    if section == "History & Trends":
+    if section == "Market Cap & Flows":
         log_page_once("history")
         historic.render_historic_holdings()
 
-    if section == "Top Holders":
+    if section == "Treasury Ranking":
         log_page_once("leaderboard")
         ranking.render_entity_ranking()
 
-    if section == "Distribution":
+    if section == "Holder Analysis":
         log_page_once("treasury_breakdown")
         treasury_breakdown.render_treasury_breakdown()
 
-    if section == "Concentration":
+    if section == "Concentration Analysis":
         log_page_once("concentration")
         concentration.render_concentration()
 
-    if section == "Valuation Insights":
+    if section == "DAT Analysis":
         log_page_once("valuation")
         valuation.render_valuation_insights()
         

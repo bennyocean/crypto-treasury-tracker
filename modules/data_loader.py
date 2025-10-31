@@ -10,47 +10,115 @@ LOCAL_FALLBACK_FILE = "data/last_prices.json"
 ASSETS = [
     "BTC",
     "ETH",
+    "XRP",
+    "BNB",
     "SOL",
+    "DOGE",
+    "TRX",
+    "ADA",
     "SUI",
     "LTC",
-    "XRP",
     "HYPE",
-    #"BNB",
-    ]
+    "TON",
+    "WLFI",
+    "PUMP",
+    "ATH",
+    "BONK",
+    "AVAX",
+    "CRO",
+    "LINK",
+    "BERA",
+    "TRUMP",
+    "ZIG",
+    "CORE",
+    "VAULTA",
+    "FLUID",
+]
 
 COINGECKO_IDS = {
-    "BTC":"bitcoin", 
-    "ETH":"ethereum",
-    "XRP":"ripple",
-    # "BNB":"binancecoin",
-    "SOL":"solana",
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+    "XRP": "ripple",
+    "BNB": "binancecoin",
+    "SOL": "solana",
+    "DOGE": "dogecoin",
+    "TRX": "tron",
+    "ADA": "cardano",
     "SUI": "sui",
-    "LTC":"litecoin",
-    "HYPE":"hyperliquid",
-    }
+    "LTC": "litecoin",
+    "HYPE": "hyperliquid",
+    "TON": "the-open-network",
+    "WLFI": "world-liberty-financial",
+    "PUMP": "pump-fun",
+    "ATH": "aethir",
+    "BONK": "bonk",
+    "AVAX": "avalanche-2",
+    "CRO": "crypto-com-chain",
+    "LINK": "chainlink",
+    "BERA": "berachain-bera",
+    "TRUMP": "official-trump",
+    "ZIG": "zignaly",
+    "CORE": "coredaoorg",
+    "VAULTA": "vaulta",
+    "FLUID": "instadapp",
+}
 
 DEFAULT_PRICES = {
-    "BTC":120_000,
-    "ETH":4_000,
-    "XRP":3.50,
-    #"BNB":700.00,
-    "SOL":150.00, 
-    "HYPE":40.00, 
-    "SUI":3.50, 
-    "LTC":110.00
-    }
+    "BTC": 110_000.0,
+    "ETH": 4_000.0,
+    "XRP": 2.50,
+    "BNB": 1_100.0,
+    "SOL": 200.0,
+    "DOGE": 0.20,
+    "TRX": 0.30,
+    "ADA": 0.80,
+    "SUI": 3.50,
+    "LTC": 110.0,
+    "HYPE": 48.0,
+    "TON": 2.00,
+    "WLFI": 0.25,
+    "PUMP": 0.003,
+    "ATH": 0.04,
+    "BONK": 0.00002,
+    "AVAX": 20.0,
+    "CRO": 0.12,
+    "LINK": 20.00,
+    "BERA": 2.00,
+    "TRUMP": 6.00,
+    "ZIG": 0.12,
+    "CORE": 0.25,
+    "VAULTA": 0.35,
+    "FLUID": 5.0,
+}
 
-# Supply column row-wise (retrieved from Coingecko)
 SUPPLY_CAPS = {
-    "BTC": 20_000_000,  
-    "ETH": 120_000_000,
-    "XRP": 60_000_000_000,
-    #"BNB": 140_000_000,
-    "SOL": 540_000_000,
-    "SUI": 3_500_000_000,
-    "LTC": 76_000_000,
-    "HYPE": 270_000_000,
-    }
+    "BTC": 19_908_153,
+    "ETH": 120_707_840,
+    "XRP": 59_418_500_720,
+    "BNB": 139_287_622,
+    "SOL": 540_069_892,
+    "DOGE": 150_552_856_383,
+    "TRX": 94_679_730_764,
+    "ADA": 36_448_472_341,
+    "SUI": 3_511_924_479,
+    "LTC": 76_198_926,
+    "HYPE": 270_772_999,
+    "TON": 2_520_529_386,
+    "WLFI": 27_255_958_920,
+    "PUMP": 354_000_000_000,
+    "ATH": 14_234_731_752,
+    "BONK": 77_419_592_329_436,
+    "AVAX": 426_584_745,
+    "CRO": 36_069_453_408,
+    "LINK": 696_849_970,
+    "BERA": 129_478_858,
+    "TRUMP": 199_999_973,
+    "ZIG": 1_408_940_795,
+    "CORE": 1_015_193_271,
+    "VAULTA": 1_599_315_411,
+    "FLUID": 77_753_292,
+}
+
 
 
 def _batch_get_tables(sheet, ranges):
@@ -159,86 +227,141 @@ def get_prices():
 
 
 # Function to get raw treasury data from master sheets
+
+ALLOWED_STATUS = {"active", "pending_funded", "pending_announced", "inactive"}
+
 def load_units():
-    scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     service_account_info = st.secrets["gcp_service_account"]
     creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
     client = gspread.authorize(creds)
     sheet = client.open("master_table_v01")
 
-    ranges = [f"aggregated_{a.lower()}_data!A:Z" for a in ASSETS]  # e.g., aggregated_btc_data!A:Z
-    tables = _batch_get_tables(sheet, ranges)  # one API call
+    rows = sheet.worksheet("aggregated_data").get_all_values()
+    if not rows:
+        return pd.DataFrame()
 
-    dfs = []
-    for rows in tables:
-        if not rows:
-            continue
-        header, data = rows[0], rows[1:]
-        if not header or not data:
-            continue
-        df_a = _df_from_table(rows)
-        if df_a is not None and not df_a.empty:
-            dfs.append(df_a)
+    header, data = rows[0], rows[1:]
+    if not header or not data:
+        return pd.DataFrame()
 
-    if not dfs:
-        return pd.DataFrame(columns=["entity_id", "Entity Name", "Ticker", "Market Cap", "Entity Type","Country","Crypto Asset","Holdings (Unit)", "Sector", "Industry", "About", "Website"]) #
+    df = pd.DataFrame(data, columns=header)
+    df = df[[c for c in [
+        "entity_id", "Entity Name", "Ticker", "Market Cap", "Entity Type", "DAT",
+        "Country", "Crypto Asset", "Holdings (Unit)", "Sector", "Industry", "About",
+        "Website", "asset_id", "target_usd", "target_units", "status",
+        "source_url", "date_source_utc"
+    ] if c in df.columns]]
 
-    df = pd.concat(dfs, ignore_index=True)
-    # normalize entity_id from sheet
+    # Ensure presence of new columns with safe defaults
+    defaults = {
+        "DAT": "no",
+        "asset_id": "",
+        "target_usd": np.nan,
+        "target_units": np.nan,
+        "status": "active",
+        "source_url": "",
+        "date_source_utc": np.nan,
+    }
+    for col, val in defaults.items():
+        if col not in df.columns:
+            df[col] = val
+
+    # Normalize keys and types
     if "entity_id" in df.columns:
         df["entity_id"] = df["entity_id"].astype(str).str.strip()
     else:
         df["entity_id"] = ""
 
-    # keep entity_id in the exported frame
-    df = df[[
-        "entity_id",
-        "Entity Name", "Ticker", "Market Cap", "Entity Type", "Country",
-        "Crypto Asset", "Holdings (Unit)", "Sector", "Industry", "About", "Website"
-    ]]
+    df["Entity Name"] = df["Entity Name"].astype(str).str.strip()
     df["Ticker"] = df["Ticker"].astype(str).str.strip()
-    #df["Ticker"] = df["Ticker"].replace({"None": np.nan, "": np.nan}).astype("string")
+    df["Country"] = df["Country"].astype(str).str.strip()
 
-    df["Market Cap"] = pd.to_numeric(df["Market Cap"], errors="coerce")  # NaN for missing
+    # Crypto Asset as uppercase ticker label
+    df["Crypto Asset"] = df["Crypto Asset"].astype(str).str.strip().str.upper()
 
+    # Market Cap numeric
+    df["Market Cap"] = pd.to_numeric(df.get("Market Cap"), errors="coerce")
+
+    # Holdings numeric with your locale cleanup
     df["Holdings (Unit)"] = (
         df["Holdings (Unit)"].astype(str)
         .str.replace(".", "", regex=False)
         .str.replace(",", ".", regex=False)
-        .astype(float)
     )
     df["Holdings (Unit)"] = pd.to_numeric(df["Holdings (Unit)"], errors="coerce").fillna(0.0)
 
+    # DAT yes or no normalized
+    df["DAT"] = df["DAT"].apply(lambda x: 1 if str(x).strip().lower() == "yes" else 0)
+
+    # Targets numeric
+    df["target_usd"] = pd.to_numeric(df["target_usd"], errors="coerce")
+    df["target_units"] = pd.to_numeric(df["target_units"], errors="coerce")
+
+    # Status normalized to allowed values
+    def _norm_status(s):
+        s = str(s).strip().lower()
+        return s if s in ALLOWED_STATUS else "active"
+    df["status"] = df["status"].apply(_norm_status)
+
+    # Source URL as string
+    df["source_url"] = df["source_url"].astype(str).str.strip()
+
+    # Date of source as datetime
+    df["date_source_utc"] = pd.to_datetime(df["date_source_utc"], errors="coerce")
+
+    # Keep consistent column order and pass through existing descriptive fields
+    keep_cols = [
+        "entity_id",
+        "Entity Name", "Ticker", "Market Cap", "Entity Type", "Country",
+        "Crypto Asset", "Holdings (Unit)", "Sector", "Industry", "About", "Website",
+        "DAT", "asset_id", "target_usd", "target_units", "status", "source_url", "date_source_utc"
+    ]
+    # Add any extra columns that may exist but are not in the standard list to avoid dropping data
+    df = df[keep_cols]
+
     return df
 
-
-def attach_usd_values(df_units: pd.DataFrame, prices_input):
-    # accept either tuple in ASSETS order or dict keyed by symbols
-    if isinstance(prices_input, tuple) or isinstance(prices_input, list):
-        price_map = dict(zip(ASSETS, map(float, prices_input)))
+def attach_usd_values(df_units: pd.DataFrame, prices_input=None, use_default_prices: bool = False):
+    """
+    Compute USD Value and derived metrics.
+    - Normal mode (use_default_prices=False): use prices_input exactly as before.
+    - Local test mode (use_default_prices=True): ignore prices_input and use DEFAULT_PRICES.
+    """
+    # Build price map
+    if use_default_prices or prices_input is None:
+        price_map = {sym: float(DEFAULT_PRICES.get(sym, 0.0)) for sym in ASSETS}
     else:
-        price_map = {k.upper(): float(v) for k, v in prices_input.items()}
+        if isinstance(prices_input, (tuple, list)):
+            price_map = dict(zip(ASSETS, map(float, prices_input)))
+        else:
+            price_map = {str(k).upper(): float(v) for k, v in prices_input.items()}
 
     df = df_units.copy()
-    # 1) Calculation of total crypto treasury value in USD
+
+    # 1) Calculate total crypto treasury value in USD (works for holdings == 0)
     df["USD Value"] = df["Crypto Asset"].map(price_map).fillna(0.0) * df["Holdings (Unit)"]
 
-    # 2)  mNAV multiple  -> Market Cap over crypto NAV
+    # 2) Market Cap over crypto NAV (mNAV multiple)
     df["mNAV"] = df["Market Cap"] / df["USD Value"]
     df.loc[df["Market Cap"].isna() | (df["Market Cap"] <= 0) | (df["USD Value"] <= 0), "mNAV"] = np.nan
     df["mNAV"] = df["mNAV"].round(2)
 
-    # 3) Premium or Discount percent -> equals mNAV minus 1
+    # 3) Premium or Discount percent (mNAV - 1)
     df["Premium"] = ((df["Market Cap"] / df["USD Value"]) - 1) * 100
     df.loc[df["Market Cap"].isna() | (df["Market Cap"] <= 0) | (df["USD Value"] <= 0), "Premium"] = np.nan
     df["Premium"] = df["Premium"].round(2)
 
-    # 4) Treasury to Market Cap ratio percent -> share of company value in crypto
+    # 4) Treasury to Market Cap ratio (share of company value in crypto)
     df["TTMCR"] = (df["USD Value"] / df["Market Cap"]) * 100
     df.loc[df["Market Cap"].isna() | (df["Market Cap"] <= 0), "TTMCR"] = np.nan
     df["TTMCR"] = df["TTMCR"].round(2)
-    
+
+    # Optional: enforce 0 value for pending pipeline rows
+    df.loc[df["status"].isin({"pending_funded", "pending_announced"}), ["USD Value"]] = 0.0
+
     return df
+
 
 
 def load_kpi_snapshots():
@@ -278,52 +401,55 @@ def load_historic_data():
     client = gspread.authorize(creds)
     sheet = client.open("master_table_v01")
 
-    ranges = [f"historic_{a.lower()}!A:Z" for a in ASSETS]  # e.g., historic_btc!A:Z
-    tables = _batch_get_tables(sheet, ranges)  # one API call
+    # Read from the new single tab
+    rows = sheet.worksheet("historic_data").get_all_values()
 
-    dfs = []
-    for rows in tables:
-        if not rows:
-            continue
-        header, data = rows[0], rows[1:]
-        if not header or not data:
-            continue
-        df_a = _df_from_table(rows)
-
-        dfs.append(df_a)
-
-    if not dfs:
+    if not rows or len(rows) < 2:
         return pd.DataFrame(columns=["Year","Month","Crypto Asset","Holdings (Unit)","USD Value","Date"])
 
-    df = pd.concat(dfs, ignore_index=True)
+    header, data = rows[0], rows[1:]
+    if not header or not data:
+        return pd.DataFrame(columns=["Year","Month","Crypto Asset","Holdings (Unit)","USD Value","Date"])
+
+    df = pd.DataFrame(data, columns=header)
+
+    # Keep only relevant columns (ignore extra ones)
     df = df[["Year","Month","Crypto Asset","Holdings (Unit)","USD Value"]]
 
+    # Clean and normalize
     df["Crypto Asset"] = df["Crypto Asset"].astype(str).str.upper()
-    df["Year"]  = pd.to_numeric(df["Year"], errors="coerce")
+    df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
     df["Month"] = pd.to_numeric(df["Month"], errors="coerce")
     df = df[df["Year"] > 2023].dropna(subset=["Year","Month"])
 
+    # Convert EU number formatting
     df["Holdings (Unit)"] = pd.to_numeric(
         df["Holdings (Unit)"].astype(str)
         .str.replace(".", "", regex=False)
         .str.replace(",", ".", regex=False),
         errors="coerce"
     ).fillna(0.0)
-    df["USD Value"] = pd.to_numeric(df["USD Value"], errors="coerce").fillna(0.0)
 
+    df["USD Value"] = pd.to_numeric(
+        df["USD Value"].astype(str)
+        .str.replace(".", "", regex=False)
+        .str.replace(",", ".", regex=False),
+        errors="coerce"
+    ).fillna(0.0)
+
+    # Create Date column for plotting/sorting (day = 1)
     df["Date"] = pd.to_datetime(
         {"year": df["Year"].astype(int), "month": df["Month"].astype(int), "day": 1},
         errors="coerce"
     )
+
     df = df.dropna(subset=["Date"])
     return df
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+
+"""@st.cache_data(ttl=3600, show_spinner=False)
 def load_planned_data() -> pd.DataFrame:
-    """
-    Reads planned data and returns a normalized DataFrame.
-    """
     scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
     service_account_info = st.secrets["gcp_service_account"]
     creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
@@ -379,8 +505,7 @@ def load_planned_data() -> pd.DataFrame:
         df[c] = df[c].astype(str).str.strip()
 
     # Keep as-is; we’ll filter in the section
-    return df
-
+    return df"""
 
 
 CTT_DB_NAME = "ctt_database_v01"

@@ -6,9 +6,10 @@ from plotly.subplots import make_subplots
 import os, base64
 from datetime import date, timedelta
 
-from modules.charts import render_rankings
+from modules.charts import render_rankings, _prepare_hist_with_snapshot, render_kpi_sparkline, build_monthly_flows_chart, render_flow_decomposition_chart, _prep_history, COLOR_MAP, build_top_five_jurisdictions_bar, build_supply_share_bar
 from modules.ui import render_plotly
-
+from modules.flow_utils import decompose_asset
+from modules.data_loader import SUPPLY_CAPS
 
 COLORS = {"BTC":"#f7931a","ETH":"#6F6F6F","XRP":"#00a5df","BNB":"#f0b90b","SOL":"#dc1fff", "SUI":"#C0E6FF", "LTC":"#345D9D", "HYPE":"#97fce4", "Other": "rgba(255,255,255,0.9)"}
 
@@ -23,7 +24,7 @@ def load_base64_image(path):
 logo_b64 = load_base64_image("assets/ctt-symbol.svg")
 btc_b64 = load_base64_image(os.path.join(_ASSETS, "bitcoin-logo.png"))
 eth_b64 = load_base64_image(os.path.join(_ASSETS, "ethereum-logo.png"))
-sol_b64 = load_base64_image(os.path.join(_ASSETS, "solana-logo.png"))
+#sol_b64 = load_base64_image(os.path.join(_ASSETS, "solana-logo.png"))
 
 
 def format_change(value):
@@ -33,6 +34,16 @@ def format_change(value):
         return f"↘ {value:.1f}%", "red"
     else:
         return f"{value:.1f}%", "white"
+
+def pretty_usd(x):
+    if pd.isna(x):
+        return "-"
+    ax = abs(x)
+    if ax >= 1e12:  return f"${x/1e12:.2f}T"
+    if ax >= 1e9:  return f"${x/1e9:.2f}B"
+    if ax >= 1e6:  return f"${x/1e6:.2f}M"
+    if ax >= 1e3:  return f"${x/1e3:.2f}K"
+    return f"${x:,.0f}"
 
 def _latest_snapshot_value(snaps: pd.DataFrame, field: str):
     if snaps is None or snaps.empty or field not in snaps.columns:
@@ -63,84 +74,94 @@ def _pct_change(cur: float, base: float):
 
 # Summary KPIs
 def render_kpis(df, snapshots_df=None):
-    # Compute values
-    df = df[(df['USD Value'] > 0) | (df['Holdings (Unit)'] > 0)]
+    # ---- Two views: USD vs. holder counts ----
+    # 1) USD math: take USD as-is (no filtering); pending rows already have USD=0 if you enforce that upstream.
+    df_usd = df.copy()
 
-    total_usd = df["USD Value"].sum()
+    # 2) Holder counts: include
+    #    - any row with Holdings > 0, OR
+    #    - any row explicitly marked active, even if holdings are 0/unknown
+    status_series = df.get("status", "").astype(str).str.lower()
+    df_counts = df[(pd.to_numeric(df.get("Holdings (Unit)"), errors="coerce").fillna(0) > 0) | (status_series == "active")].copy()
 
-    btc_df = df[df["Crypto Asset"] == "BTC"]
-    eth_df = df[df["Crypto Asset"] == "ETH"]
-    sol_df = df[df["Crypto Asset"] == "SOL"]
+    # ---- USD totals (BTC/ETH/SOL/Other) ----
+    total_usd = pd.to_numeric(df_usd["USD Value"], errors="coerce").fillna(0).sum()
 
-    btc_usd = btc_df["USD Value"].sum()
-    eth_usd = eth_df["USD Value"].sum()
-    sol_usd = sol_df["USD Value"].sum()
+    btc_usd = pd.to_numeric(df_usd.loc[df_usd["Crypto Asset"] == "BTC", "USD Value"], errors="coerce").fillna(0).sum()
+    eth_usd = pd.to_numeric(df_usd.loc[df_usd["Crypto Asset"] == "ETH", "USD Value"], errors="coerce").fillna(0).sum()
+    #sol_usd = pd.to_numeric(df_usd.loc[df_usd["Crypto Asset"] == "SOL", "USD Value"], errors="coerce").fillna(0).sum()
+    other_usd = max(total_usd - (btc_usd + eth_usd ), 0)
 
-    btc_entities = btc_df["Entity Name"].shape[0]#.nunique()
-    eth_entities = eth_df["Entity Name"].shape[0]#.nunique()
-    sol_entities = sol_df["Entity Name"].shape[0]#.nunique()
-    total_entities_all = df["Entity Name"].shape[0]
-    total_entities = df["Entity Name"].nunique()
+    usd_pct = {
+        "BTC": (btc_usd / total_usd) if total_usd else 0.0,
+        "ETH": (eth_usd / total_usd) if total_usd else 0.0,
+       # "SOL": (sol_usd / total_usd) if total_usd else 0.0,
+        "Other": (other_usd / total_usd) if total_usd else 0.0,
+    }
 
-    btc_units = btc_df["Holdings (Unit)"].sum()
-    eth_units = eth_df["Holdings (Unit)"].sum()
-    sol_units = sol_df["Holdings (Unit)"].sum()
+    # ---- Holder counts (unique entities) with BTC/ETH/SOL disjoint split ----
+    btc_df = df_counts[df_counts["Crypto Asset"] == "BTC"]
+    eth_df = df_counts[df_counts["Crypto Asset"] == "ETH"]
+    #sol_df = df_counts[df_counts["Crypto Asset"] == "SOL"]
 
-    # baselines
-    usd_base = _latest_snapshot_value(snapshots_df, "total_usd")            # 1d (latest stored)
-    ent_base = _snapshot_value_days_back(snapshots_df, "total_entities", 7)  # 7d ago (or nearest older)
-    print("usd base print: ", usd_base)
+    btc_entities = btc_df["Entity Name"].nunique()
+    eth_entities = eth_df["Entity Name"].nunique()
+    #sol_entities = sol_df["Entity Name"].nunique()
 
-    usd_pct = ((float(total_usd) - float(usd_base)) / float(usd_base) * 100.0) if usd_base and usd_base > 0 else None
-    ent_pct = ((float(total_entities) - float(ent_base)) / float(ent_base) * 100.0) if ent_base and ent_base > 0 else None
+    total_entities = df_counts["Entity Name"].nunique()
+
+    btc_set = set(btc_df["Entity Name"].dropna().unique())
+    eth_set = set(eth_df["Entity Name"].dropna().unique())
+    #sol_set = set(sol_df["Entity Name"].dropna().unique())
+    #oth_excl = max(total_entities - len(btc_set | eth_set | sol_set), 0)
+    oth_excl = max(total_entities - len(btc_set | eth_set), 0)
+
+    pct_excl = {
+        "BTC": (btc_entities / total_entities) if total_entities else 0.0,
+        "ETH": (eth_entities / total_entities) if total_entities else 0.0,
+        #"SOL": (sol_entities / total_entities) if total_entities else 0.0,
+        "Other": (oth_excl / total_entities) if total_entities else 0.0,
+    }
+
+    #ENT_COUNTS = {"BTC": btc_entities, "ETH": eth_entities, "SOL": sol_entities, "Other": oth_excl}
+    ENT_COUNTS = {"BTC": btc_entities, "ETH": eth_entities, "Other": oth_excl}
+
+    # ---- Baselines / deltas (use the same definitions as the KPIs above) ----
+    usd_base = _latest_snapshot_value(snapshots_df, "total_usd")
+    ent_base = _snapshot_value_days_back(snapshots_df, "total_entities", 7)
+
+    usd_pct_delta = ((float(total_usd) - float(usd_base)) / float(usd_base) * 100.0) if usd_base and usd_base > 0 else None
     ent_delta_units = ((int(total_entities) - int(ent_base))) if ent_base and ent_base > 0 else None
 
-    print("usd pct print: ", usd_pct)
-
-    usd_delta_label = f"{usd_pct:+.1f}%" if usd_pct is not None else "–"
-    ent_delta_label = f"{ent_pct:+.1f}%" if ent_pct is not None else "–"
+    usd_delta_label = f"{usd_pct_delta:+.1f}%" if usd_pct_delta is not None else "–"
 
     
-    # KPI layout
-    col1, col2, col3 = st.columns(3)
+    # ---- KPI layout ----
+    col1, col2, col3, col4, col5 = st.columns(5)
 
+    # --------- COL 1  Treasury Market Value -----------
     with col1:
         with st.container(border=True):
-            st.metric("Total USD Value",
-                      f"${total_usd:,.0f}",
-                      delta=f"{usd_delta_label} (24H)",
-                      help="Aggregate USD value of all tracked crypto assets across entities, based on live market pricing (vs last day).")
+            st.metric(
+                "Treasury Market Value",
+                f"{pretty_usd(total_usd)}",
+                delta=f"{usd_delta_label} (24H)",
+                help="Aggregate treasury value in USD of all tracked crypto assets across entities, based on live market pricing (vs last day).",
+                border=False
+            )
 
-            other_usd = max(total_usd - (btc_usd + eth_usd + sol_usd), 0)
+            render_kpi_sparkline(snapshots_df, usd_pct_delta)
 
-            usd_pct = {
-                "BTC": (btc_usd / total_usd) if total_usd else 0.0,
-                "ETH": (eth_usd / total_usd) if total_usd else 0.0,
-                "SOL": (sol_usd / total_usd) if total_usd else 0.0,
-                "Other": (other_usd / total_usd) if total_usd else 0.0,
-            }
 
-            # Progress bar with hover tooltip
             st.markdown(
                 f"""
-                <div style='background-color:#1e1e1e;border-radius:8px;height:20px;width:100%;
-                            display:flex;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);'>
-                    {''.join(
-                        f"<div title='{a}: {usd_pct[a]*100:.1f}% (${val/1e9:.1f}B)' "
-                        f"style='width:{usd_pct[a]*100:.4f}%;background-color:{COLORS[a]};'></div>"
-                        for a, val in [("BTC", btc_usd), ("ETH", eth_usd), ("SOL", sol_usd), ("Other", other_usd)]
-                    )}
-                </div>
-                <div style='margin-top:8px;margin-bottom:-5px;font-size:15px;color:#aaa;
-                            display:flex;gap:12px;align-items:center;'>Dominance:
+                <div style='margin-top:0px;margin-bottom:10px;font-size:15px;color:#aaa;
+                            display:flex;gap:12px;align-items:center;'>
                     <div style='display:flex;align-items:center;gap:6px;'>
                         <img src="data:image/png;base64,{btc_b64}" width="16" height="16"> {usd_pct["BTC"]*100:.1f}%
                     </div>
                     <div style='display:flex;align-items:center;gap:6px;'>
                         <img src="data:image/png;base64,{eth_b64}" width="16" height="16"> {usd_pct["ETH"]*100:.1f}%
-                    </div>
-                    <div style='display:flex;align-items:center;gap:6px;'>
-                        <img src="data:image/png;base64,{sol_b64}" width="16" height="16"> {usd_pct["SOL"]*100:.1f}%
                     </div>
                     <div style='display:flex;align-items:center;gap:6px;'>
                         <span style="display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid rgba(255,255,255,0.9);vertical-align:middle"></span>
@@ -151,59 +172,132 @@ def render_kpis(df, snapshots_df=None):
                 unsafe_allow_html=True
             )
 
-            st.markdown("")
-
-    # ---- Adoption (entities) with OTH residual ----
+    # --------- COL 2  Monthly Net Flow -----------
     with col2:
-        with st.container(border=True):
-            st.metric(
-                "Total Unique Holders",
-                f"{total_entities}",
-                delta=f"{ent_delta_units} (WoW)",
-                help="Entities holding crypto assets (vs last week), excluding ETFs and other indirect vehicles. Note: some entities hold various crypto assets and are counted once."
+        # ---- Monthly ΔUSD KPI ----
+        df_hist = st.session_state.get("historic_df")
+        df_curr = st.session_state.get("data_df")  # live snapshot for current month
+
+        if isinstance(df_hist, pd.DataFrame) and not df_hist.empty:
+            # include current month like in the dedicated decomposition section
+            hist_merge, _ = _prepare_hist_with_snapshot(df_hist, df_curr)
+            hist = _prep_history(hist_merge)
+
+            # per-asset decomposition then aggregate to monthly totals
+            decomp = (
+                hist.groupby("Crypto Asset", group_keys=True)
+                    .apply(decompose_asset)
+                    .reset_index(drop=True)
+            )
+            decomp["Date"] = pd.to_datetime(decomp["Date"]).dt.to_period("M").dt.to_timestamp()
+
+            monthly = (
+                decomp.groupby("Date")[["d_usd", "price_effect", "units_effect"]]
+                    .sum()
+                    .reset_index()
+                    .sort_values("Date")
             )
 
-            # sets for exclusive partition (BTC first, then ETH not in BTC, then SOL not in BTC/ETH, then Other = none of these)
-            btc_set = set(btc_df["Entity Name"].unique())
-            eth_set = set(eth_df["Entity Name"].unique())
-            sol_set = set(sol_df["Entity Name"].unique())
-            union_bes = btc_set | eth_set | sol_set
+            # force a complete 6-month window ending at the latest month, fill gaps with 0
+            last_month = pd.to_datetime(monthly["Date"].max()).to_period("M").to_timestamp()
+            six_idx = pd.date_range(end=last_month, periods=6, freq="MS")
 
-            btc_excl = len(btc_set)
-            eth_excl = len(eth_set - btc_set)
-            sol_excl = len(sol_set - btc_set - eth_set)
-            oth_excl = max(total_entities - len(union_bes), 0)
-            other_excl_new = (total_entities_all - btc_entities - eth_entities - sol_entities)
-            
-            pct_excl = {
-                "BTC": (btc_excl / total_entities) if total_entities else 0.0,
-                "ETH": (eth_excl / total_entities) if total_entities else 0.0,
-                "SOL": (sol_excl / total_entities) if total_entities else 0.0,
-                "Other": (oth_excl / total_entities) if total_entities else 0.0,
-            }
+            monthly = (
+                monthly.set_index("Date")
+                    .reindex(six_idx, fill_value=0.0)
+                    .rename_axis("Date")
+                    .reset_index()
+            )
 
-            # display counts (keep your original per-asset counts; Other uses the disjoint count)
-            ENT_COUNTS = {"BTC": btc_entities, "ETH": eth_entities, "SOL": sol_entities, "Other": other_excl_new}
+            prev_month = pd.to_datetime(monthly.iloc[-2]["Date"])
+            month_name = prev_month.strftime("%b")
+            year = prev_month.strftime("%Y")
 
+            if not monthly.empty:
+                last = monthly.iloc[-1]
+                prev = monthly.iloc[-2] if len(monthly) > 1 else None
+
+                d_usd = float(last["d_usd"])
+                pct_change = None
+                if prev is not None and float(prev["d_usd"]) != 0:
+                    pct_change = (d_usd - float(prev["d_usd"])) / abs(float(prev["d_usd"])) * 100.0
+
+                delta_label = f"{pct_change:+.1f}%" if pct_change is not None else "–"
+
+                with st.container(border=True):
+                    st.metric(
+                        label="Monthly Net Flow",
+                        value=pretty_usd(d_usd),
+                        delta=f"{delta_label} ({month_name} {year})",
+                        help="Net inflow or outflow across all tracked entities in the current month, with percent change versus the previous month. Net equals price effect plus units effect"
+                    )
+
+                    fig = build_monthly_flows_chart(monthly)  # pass merged hist so chart matches KPI
+                    if fig is not None:
+                        st.plotly_chart(
+                            fig,
+                            use_container_width=True,
+                            config={
+                                "displayModeBar": False,
+                                "scrollZoom": False,
+                                "doubleClick": False,
+                                "editable": False
+                            }
+                        )
+            else:
+                with st.container(border=True):
+                    st.metric("ΔUSD last month", "–", help="No sufficient monthly history available.")
+        else:
+            with st.container(border=True):
+                st.metric("ΔUSD last month", "–", help="No historic data available for flow KPI.")
+
+    # --- Entity type breakdown for holder distribution ---
+    if "Entity Type" in df_counts.columns:
+        type_counts = (
+            df_counts.groupby("Entity Type", as_index=False)["Entity Name"]
+                    .nunique()
+                    .rename(columns={"Entity Name": "count"})
+        )
+
+        # Sort descending by number of entities
+        type_counts = type_counts.sort_values("count", ascending=False)
+
+        total_holders = int(type_counts["count"].sum())
+        type_counts["share"] = type_counts["count"] / total_holders
+    else:
+        type_counts = pd.DataFrame(columns=["Entity Type", "count", "share"])
+        total_holders = total_entities
+
+    # --------- COL 3  Entity Number -----------
+    with col3:
+        with st.container(border=True):
+            st.metric(
+                "Total Holders",
+                f"{total_entities}",
+                delta=f"{ent_delta_units} (WoW)",
+                help="Entities holding crypto assets or confirmed active holders (even if current holdings are not disclosed). Each entity counted once."
+            )
+
+            #st.markdown("")
             ENT_COLORS = {
-                "BTC": COLORS["BTC"],   # from your first KPI card
+                "BTC": COLORS["BTC"],
                 "ETH": COLORS["ETH"],
-                "SOL": COLORS["SOL"],
-                "Other": COLORS["Other"],  # white
+                #"SOL": COLORS["SOL"],
+                "Other": COLORS.get("Other", "#cccccc"),
             }
 
             st.markdown(
                 f"""
-                <div style='background-color:#1e1e1e;border-radius:8px;height:20px;width:100%;
+                <div style='background-color:#1e1e1e;border-radius:8px;height:40px;width:100%;margin-top:13px;
                             display:flex;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);'>
                     {''.join(
                         f"<div title='{k}: {ENT_COUNTS[k]} ({pct_excl[k]*100:.1f}%)' "
                         f"style='width:{pct_excl[k]*100:.4f}%;background-color:{ENT_COLORS[k]};'></div>"
-                        for k in ["BTC","ETH","SOL","Other"]
+                        for k in ["BTC","ETH","Other"]
                     )}
                 </div>
-                <div style='margin-top:8px;margin-bottom:16px;font-size:15px;color:#aaa;
-                            display:flex;gap:12px;align-items:center;'>Adoption:
+                <div style='margin-top:20px;margin-bottom:10px;font-size:15px;color:#aaa;
+                            display:flex;gap:12px;align-items:center;'>
                     <div style='display:flex;align-items:center;gap:6px;'>
                         <img src="data:image/png;base64,{btc_b64}" width="16" height="16"> {btc_entities}
                     </div>
@@ -211,145 +305,48 @@ def render_kpis(df, snapshots_df=None):
                         <img src="data:image/png;base64,{eth_b64}" width="16" height="16"> {eth_entities}
                     </div>
                     <div style='display:flex;align-items:center;gap:6px;'>
-                        <img src="data:image/png;base64,{sol_b64}" width="16" height="16"> {sol_entities}
-                    </div>
-                    <div style='display:flex;align-items:center;gap:6px;'>
                         <span style="display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid rgba(255,255,255,0.9);vertical-align:middle"></span>
-                        {other_excl_new}
+                        {oth_excl}
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-            #st.markdown("")
-
-
-    with col3:
+    # --------- COL 4  Top Jurisdictions mini bar -----------
+    with col4:
         with st.container(border=True):
-            st.metric("% of Supply", f"", help="Share of total circulating supply held by tracked entities (BTC ≈ 20M, ETH ≈ 120M, SOL ≈ 540M).")
-
-            # compute percentages of supply
-            btc_pct_supply = btc_units / 20_000_000
-            eth_pct_supply = eth_units / 120_000_000
-            sol_pct_supply = sol_units / 540_000_000
-
-            # colors
-            COL_HELD = {
-                "BTC": "#f7931a",
-                "ETH": "#6F6F6F",
-                "SOL": "#dc1fff",
-            }
-            COL_REMAIN = "#2c2c2c"
-
-            # figure and subplots
-            fig = make_subplots(
-                rows=1, cols=3,
-                specs=[[{"type": "domain"}, {"type": "domain"}, {"type": "domain"}]],
-                horizontal_spacing=0.08,
+            st.metric(
+                "Top Countries",
+                value="",  # number not needed, chart carries info
+                help="Top five countries by aggregate value in USD. Unknown, Decentralized and Other are excluded."
             )
 
-            # pies
-            fig.add_trace(go.Pie(
-                labels=["Held", "Remaining"],
-                values=[btc_pct_supply, 1 - btc_pct_supply],
-                hole=0.7,
-                marker_colors=[COL_HELD["BTC"], COL_REMAIN],
-                textinfo="none",
-                hoverinfo="skip",
-                sort=False
-            ), 1, 1)
-
-            fig.add_trace(go.Pie(
-                labels=["Held", "Remaining"],
-                values=[eth_pct_supply, 1 - eth_pct_supply],
-                hole=0.7,
-                marker_colors=[COL_HELD["ETH"], COL_REMAIN],
-                textinfo="none",
-                hoverinfo="skip",
-                sort=False
-            ), 1, 2)
-
-            fig.add_trace(go.Pie(
-                labels=["Held", "Remaining"],
-                values=[sol_pct_supply, 1 - sol_pct_supply],
-                hole=0.7,
-                marker_colors=[COL_HELD["SOL"], COL_REMAIN],
-                textinfo="none",
-                hoverinfo="skip",
-                sort=False
-            ), 1, 3)
-
-            # helper to center a logo and its percent for a given pie trace
-            def add_logo_and_pct(fig, trace_idx, b64, pct_text, img_scale=0.24, gap=0.25):
-                """
-                img_scale controls logo size relative to the pie domain
-                gap controls vertical spacing between logo and text as a fraction of domain height
-                """
-                t = fig.data[trace_idx]
-                try:
-                    x0, x1 = t.domain.x
-                    y0, y1 = t.domain.y
-                except Exception:
-                    x0, x1 = t.domain["x"]
-                    y0, y1 = t.domain.get("y", [0, 1])
-
-                cx = (x0 + x1) / 2.0
-                cy = (y0 + y1) / 2.0
-                dx = (x1 - x0)
-                dy = (y1 - y0)
-
-                # logo anchored to pie domain
-                fig.add_layout_image(dict(
-                    source=f"data:image/png;base64,{b64}",
-                    xref="paper", yref="paper",
-                    x=cx, y=cy + dy * (gap / 2),
-                    sizex=dx * img_scale,
-                    sizey=dy * img_scale,
-                    xanchor="center", yanchor="middle",
-                    sizing="contain",
-                    layer="above",
-                    opacity=1.0,
-                ))
-
-                # percent anchored to the same domain with symmetric offset
-                fig.add_annotation(
-                    text=pct_text,
-                    x=cx, y=cy - dy * (gap / 2),
-                    xref="paper", yref="paper",
-                    xanchor="center", yanchor="middle",
-                    showarrow=False,
-                    font=dict(size=16, color="white"),
-                    align="center",
+            fig_geo = build_top_five_jurisdictions_bar(df_usd)
+            if fig_geo is not None:
+                st.plotly_chart(
+                    fig_geo,
+                    use_container_width=True,
+                    config=dict(displayModeBar=False, scrollZoom=False, doubleClick=False, editable=False),
                 )
 
-            # layout reset
-            fig.update_layout(
-                height=125,
-                margin=dict(t=10, b=0, l=0, r=0),
-                showlegend=False,
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                annotations=[],
+    # --------- COL 5  Treasury Concentration mini bar ----------
+    with col5:
+        with st.container(border=True):
+            st.metric(
+                label="Share of Supply (Top 5)",
+                value="",
+                help="Top five crypto assets ranked by total treasury holdings as a share of their circulating supply."
             )
 
-            # place logos and percents
-            # assumes btc_b64 eth_b64 sol_b64 already loaded as base64 strings
-            add_logo_and_pct(fig, 0, btc_b64, f"{btc_pct_supply:.2%}")
-            add_logo_and_pct(fig, 1, eth_b64, f"{eth_pct_supply:.2%}")
-            add_logo_and_pct(fig, 2, sol_b64, f"{sol_pct_supply:.2%}")
-
-            st.plotly_chart(
-                fig,
-                config={"displayModeBar": False},
-                use_container_width=True  # replaces width="stretch"
-            )
-
-            #st.markdown("")
-
-
-            # {btc_units:,.0f}
-
+            fig_supply = build_supply_share_bar(df_usd, sort_mode = "usd")
+            if fig_supply is not None:
+                st.plotly_chart(
+                    fig_supply,
+                    use_container_width=True,
+                    config=dict(displayModeBar=False, scrollZoom=False, doubleClick=False, editable=False),
+                )
+    
 
 # Top 5 Holders Chart
 def top_5_holders(df, asset="BTC", key_prefix="top5"):
@@ -621,17 +618,6 @@ def render_historic_kpis(df_filtered: pd.DataFrame):
                 st.caption("Select a single asset to view unit‑based KPIs.")
 
 
-def _coerce_num(s: pd.Series) -> pd.Series:
-    """Parse numbers from both US and EU formats. Returns float Series."""
-    s1 = pd.to_numeric(s, errors="coerce")
-    if s1.isna().mean() > 0.5:
-        s_alt = (s.astype(str)
-                   .str.replace(r"\s", "", regex=True)
-                   .str.replace(".", "", regex=False)
-                   .str.replace(",", ".", regex=False))
-        s1 = pd.to_numeric(s_alt, errors="coerce")
-    return s1
-
 def _fmt_usd(x: float) -> str:
     try:
         if abs(x) >= 1e9:  return f"${x/1e9:,.1f}B"
@@ -641,146 +627,91 @@ def _fmt_usd(x: float) -> str:
     except Exception:
         return "$0"
 
-def _prep_history(hist: pd.DataFrame) -> pd.DataFrame:
-    """Normalize columns, ensure numerics, derive Price USD if missing, ffill/bfill per asset."""
-    h = hist.copy()
-    if "Date" not in h.columns:
-        if "date" in h.columns:
-            h["Date"] = pd.to_datetime(h["date"])
-        else:
-            h["Date"] = pd.to_datetime(dict(year=h["Year"], month=h["Month"], day=1), errors="coerce")
 
-    h = h.rename(columns=lambda c: str(c).strip())
-    alias = {
-        "Price": "Price USD", "Price_USD": "Price USD",
-        "USD": "USD Value",   "USD_Value": "USD Value",
-        "Holdings": "Holdings (Unit)", "Units": "Holdings (Unit)",
-    }
-    for k, v in alias.items():
-        if k in h.columns and v not in h.columns:
-            h.rename(columns={k: v}, inplace=True)
-
-    for col in ["Holdings (Unit)", "USD Value", "Price USD"]:
-        if col not in h.columns:
-            h[col] = np.nan
-
-    h["Holdings (Unit)"] = _coerce_num(h["Holdings (Unit)"])
-    h["USD Value"]       = _coerce_num(h["USD Value"])
-    h["Price USD"]       = _coerce_num(h["Price USD"])
-
-    need_p = h["Price USD"].isna()
-    with np.errstate(divide="ignore", invalid="ignore"):
-        implied = h["USD Value"] / h["Holdings (Unit)"]
-    h.loc[need_p, "Price USD"] = implied[need_p]
-
-    need_usd = h["USD Value"].isna() & h["Price USD"].notna() & h["Holdings (Unit)"].notna()
-    h.loc[need_usd, "USD Value"] = h.loc[need_usd, "Price USD"] * h.loc[need_usd, "Holdings (Unit)"]
-
-    h = h.sort_values(["Crypto Asset", "Date"]).reset_index(drop=True)
-    h["Price USD"] = h["Price USD"].groupby(h["Crypto Asset"], sort=False).transform(lambda s: s.ffill().bfill())
-    return h
-
-def _decompose_asset(g: pd.DataFrame) -> pd.DataFrame:
-    """Exact ΔUSD decomposition per asset:
-       ΔUSD = units_prev * Δprice  +  price_curr * Δunits
-    """
-    g = g.sort_values("Date").copy()
-    g["units_prev"] = g["Holdings (Unit)"].shift()
-    g["price_prev"] = g["Price USD"].shift()
-    g["d_usd"] = g["USD Value"].diff()
-    g["price_effect"] = (g["Price USD"] - g["price_prev"]) * g["units_prev"]
-    g["units_effect"] = (g["Holdings (Unit)"] - g["units_prev"]) * g["Price USD"]
-    g = g.dropna(subset=["d_usd", "price_effect", "units_effect"])
-    return g
-
-def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
-    """
-    Render 'Flow & Decomposition (Price vs Accumulation)' using the ALREADY-filtered historic df.
-    Expect df_hist_filtered to respect your apply_filters_historic (assets + time).
-    """
-
+def render_flow_decomposition(df_hist_filtered: pd.DataFrame, current_df: pd.DataFrame | None = None):
     if df_hist_filtered.empty:
         st.info("No historic data for the current filters.")
         return
 
-    hist = _prep_history(df_hist_filtered)
+    # 1) Merge historic with current snapshot month if provided
+    hist_merge, _ = _prepare_hist_with_snapshot(df_hist_filtered, current_df)
+    hist = _prep_history(hist_merge)
 
-    # --- add prior month baseline so the first month (e.g. January) has deltas ---
-    start_m = pd.to_datetime(hist["Date"].min()).to_period("M").to_timestamp()
-    prev_m  = (start_m - pd.offsets.MonthBegin(1))
+    # 2) Append current month aggregate when newer than last hist month
+    if current_df is not None and not current_df.empty:
+        snap_month = pd.Timestamp.today().to_period("M").to_timestamp()
+        last_hist_m = pd.to_datetime(hist["Date"]).dt.to_period("M").dt.to_timestamp().max()
 
+        if snap_month > last_hist_m:
+            snap = current_df.copy()
+            cur_month = (
+                snap.groupby("Crypto Asset", as_index=False)[["Holdings (Unit)", "USD Value"]]
+                    .sum()
+            )
+            cur_month["Price USD"] = np.where(
+                pd.to_numeric(cur_month["Holdings (Unit)"], errors="coerce").gt(0),
+                pd.to_numeric(cur_month["USD Value"], errors="coerce") / pd.to_numeric(cur_month["Holdings (Unit)"], errors="coerce"),
+                np.nan
+            )
+            cur_month["Date"] = snap_month
+            hist = pd.concat([hist, cur_month], ignore_index=True)
+            hist = _prep_history(hist)
+
+    # 3) Build a baseline month BEFORE the first month displayed
+    start_m = pd.to_datetime(hist["Date"]).dt.to_period("M").dt.to_timestamp().min()
+    prev_m  = start_m - pd.offsets.MonthBegin(1)
     assets_scope = hist["Crypto Asset"].dropna().unique().tolist()
-    base_hist = st.session_state.get("historic_df")
 
+
+    base_hist = st.session_state.get("historic_df")
     if isinstance(base_hist, pd.DataFrame) and not base_hist.empty:
-        # ensure base_hist has month-start Date for comparison
         bh = base_hist.copy()
         bh["Date"] = pd.to_datetime(bh["Date"]).dt.to_period("M").dt.to_timestamp()
         base_rows = bh[(bh["Crypto Asset"].isin(assets_scope)) & (bh["Date"] == prev_m)]
         hist_decomp = pd.concat([base_rows, hist], ignore_index=True)
-        hist_decomp = _prep_history(hist_decomp)  # <-- ensure base month has Price USD, numerics, etc.
+        hist_decomp = _prep_history(hist_decomp)
     else:
         hist_decomp = hist.copy()
 
     with st.container(border=False):
-        st.markdown("### Flow & Decomposition (Price vs Accumulation)", help="Shows whether growth came from new units or price beta by splitting monthly USD Delta into “Delta Price on prior units” vs “Delta Units at current price”.")
+        st.markdown("### Flow & Decomposition (Price vs Accumulation)", help="Splits monthly ΔUSD into Price effect on prior units vs Units effect at current price.")
         st.markdown("")
 
-        c1, c2 = st.columns([1, 1])
+        selected_assets = st.session_state.get("flt_assets", [])
+        asset_pick = selected_assets[0] if isinstance(selected_assets, list) and len(selected_assets) == 1 else None
 
-        # Single-asset toggle (aggregated vs one asset)
-        view_mode = c1.segmented_control(
-            "View",
-            options=["Aggregated (selected assets)", "Single asset"],
-            default="Aggregated (selected assets)",
-            help="Aggregate sums across selected assets or inspect a single asset.",
-            label_visibility="collapsed"
-        )
-        if view_mode == "Single asset":
-            assets_in_scope = sorted(hist["Crypto Asset"].dropna().unique().tolist())
-            asset_pick = c2.pills("Asset", assets_in_scope, default=["BTC"], label_visibility="collapsed")
-        else:
-            asset_pick = None
-
+        # 4) Decompose per asset with the robust version
         decomp = (
             hist_decomp.groupby("Crypto Asset", group_keys=True)
-                    .apply(_decompose_asset)
-                    .reset_index(drop=True)
+                       .apply(decompose_asset)   # <- your local wrapper or import decompose_asset
+                       .reset_index(drop=True)
         )
 
-        # keep only months within the filtered range (drop the injected prior month from the display)
+        # 5) Ensure the reindex includes the current month
         decomp["Date"] = pd.to_datetime(decomp["Date"]).dt.to_period("M").dt.to_timestamp()
-        decomp = decomp[decomp["Date"] >= start_m]
+        start_m = pd.to_datetime(df_hist_filtered["Date"]).dt.to_period("M").dt.to_timestamp().min()
+        end_m   = max(
+            pd.to_datetime(hist["Date"]).dt.to_period("M").dt.to_timestamp().max(),
+            pd.Timestamp.today().to_period("M").to_timestamp()
+        )
+        full_months = pd.date_range(start=start_m, end=end_m, freq="MS")
 
-        if decomp.empty:
-            st.info("Not enough monthly history to compute flows for the current selection.")
-            return
 
         if asset_pick:
             view = decomp[decomp["Crypto Asset"] == asset_pick].copy()
-            bar_color_price = "#8892a6"
-            bar_color_units = COLORS.get(asset_pick, "#43d1a0")
         else:
             view = (decomp.groupby("Date")[["d_usd", "price_effect", "units_effect"]]
                           .sum()
                           .reset_index())
-            bar_color_price = "#8892a6"
-            bar_color_units = "#43d1a0"
 
-        view["Date"] = pd.to_datetime(view["Date"]).dt.to_period("M").dt.to_timestamp()
+        view = (
+            view.set_index("Date")
+                .reindex(full_months, fill_value=0.0)
+                .rename_axis("Date")
+                .reset_index()
+        )
 
-        start_m = pd.to_datetime(df_hist_filtered["Date"].min()).to_period("M").to_timestamp()
-        end_m   = pd.to_datetime(df_hist_filtered["Date"].max()).to_period("M").to_timestamp()
-        full_months = pd.date_range(start=start_m, end=end_m, freq="MS")  # Month Start
-
-        view = (view.set_index("Date")
-                    .reindex(full_months, fill_value=0.0)
-                    .rename_axis("Date")
-                    .reset_index())
-
-        st.markdown("")
-
-        # KPIs (last month)
+        # 6) KPIs use the latest row which now is the current month
         last = view.sort_values("Date").tail(1)
         d_usd = float(last["d_usd"].iloc[0]) if not last.empty else 0.0
         pe    = float(last["price_effect"].iloc[0]) if not last.empty else 0.0
@@ -789,61 +720,13 @@ def render_flow_decomposition(df_hist_filtered: pd.DataFrame):
         k1, k2, k3 = st.columns(3)
         with k1:
             with st.container(border=True):
-                st.metric("ΔUSD (last month)", _fmt_usd(d_usd))
+                st.metric("ΔUSD current month", _fmt_usd(d_usd))
         with k2:
             with st.container(border=True):
-                st.metric("Price contribution", _fmt_usd(pe),
-                  help="Effect from price changing on prior units.")
+                st.metric("Price contribution", _fmt_usd(pe))
         with k3:
             with st.container(border=True):
-                st.metric("Units contribution", _fmt_usd(ue),
-                  help="Effect from accumulation/reduction of units at current price.")
+                st.metric("Units contribution", _fmt_usd(ue))
 
-        # Chart
-        fig = go.Figure()
-        view["price_hover"] = view["price_effect"].apply(_fmt_usd)
-        view["units_hover"] = view["units_effect"].apply(_fmt_usd)
-
-        fig.add_bar(
-            name="Price effect",
-            x=view["Date"],
-            y=view["price_effect"],
-            marker_color=bar_color_price,
-            hovertext=view["price_hover"],  # pass formatted strings
-            hovertemplate="Date: %{x|%b %Y}<br>Price: %{hovertext}<extra></extra>",
-        )
-
-        fig.add_bar(
-            name="Units effect",
-            x=view["Date"],
-            y=view["units_effect"],
-            marker_color=bar_color_units,
-            hovertext=view["units_hover"],
-            hovertemplate="Date: %{x|%b %Y}<br>Units: %{hovertext}<extra></extra>",
-        )
-
-        fig.update_layout(
-            barmode="relative",
-            height=360,
-            margin=dict(l=40, r=20, t=10, b=30),
-            xaxis=dict(title=None, tickformat="%b %Y", fixedrange=True),
-            yaxis=dict(title="ΔUSD", tickprefix="$", fixedrange=True),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-            hoverlabel=dict(align="left"),
-        )
-        # Watermark
-        fig.add_annotation(
-            text="cryptotreasurytracker.xyz",
-            x=0.5, y=0.9,
-            xref="paper", yref="paper",
-            showarrow=False,
-            font=dict(size=30, color="white"),
-            opacity=0.3,
-            xanchor="center",
-            yanchor="top",
-        )
-        render_plotly(fig, filename=f"flows_{asset_pick or 'agg'}".lower(), extra_config={"scrollZoom": False})
-
-        st.caption("Note: Decomposition uses **asset-level monthly aggregates**; it respects the *filters (assets + time)*. "
-                   "Holder Type and Country filters are not applied unless history exists at that granularity.")
-        
+        render_flow_decomposition_chart(view, asset_pick)
+        st.caption("Note Current month is derived from live snapshot data when available.")

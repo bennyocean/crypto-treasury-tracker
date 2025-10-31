@@ -3,20 +3,20 @@ import streamlit as st
 
 def render_about():
 
-    st.title("About")
+    #st.title("About")
     
     # Box 1: Project Overview
     with st.container(border=False):
 
-        st.subheader("First Multi-Asset Crypto Treasury Tracker")
+        st.subheader("The Most Comprehensive Crypto Treasury Platform")
 
         st.markdown(
             """            
-            <p>Crypto reserves held by public, private, and sovereign entities are increasingly shaping digital asset market structure and institutional narratives. Yet existing tools remain fragmented—most cover only Bitcoin or a narrow subset.</p>
+            <p>Crypto assets held by corporate and institutional organizations are increasingly shaping digital asset market structure and narratives.</p>
 
-            <p>The <strong>Crypto Treasury Tracker (CTT)</strong> brings transparency to digital asset treasuries (DATs). It benchmarks <strong>all</strong> DATs built by public & private companies, DAOs, non-profit organizations, and sovereigns.</p>
+            <p>The <strong>Crypto Treasury Tracker (CTT)</strong> brings transparency to digital asset treasury holdings. It benchmarks <strong>all</strong> crypto treasuries established by public & private companies, DAOs, non-profit organizations, and sovereigns.</p>
 
-            <p>Instead of data silos, the <strong>CTT</strong> merges asset‑level and entity‑level crypto treasury data into a unified analytics layer. Moreover, it allows cross‑sectional, regional, and historical analysis of DAT holdings using dynamic filters and interactive charts, delivering actionable insights and signals for institutional investors, finance professionals, researchers, and strategic observers.</p>
+            <p>Instead of data silos, the <strong>CTT</strong> merges asset‑level and entity‑level crypto treasury data into a unified analytics layer. Moreover, it allows cross‑sectional, regional, and historical analysis of crypto treasury holdings using dynamic filters and interactive charts, delivering actionable insights and signals for institutional investors, finance professionals, researchers, and strategic observers.</p>
 
             </div>
             """,
@@ -32,27 +32,10 @@ def render_about():
             """
             <ul>
                 <li>Live crypto price feeds via <a href="https://docs.coingecko.com/reference/simple-price" target="_blank">CoinGecko API</a>, automatically refreshed every hour</li>
-                <li>Treasury data is updated weekly and based on external sources such as <a href="https://bitcointreasuries.net/" target="_blank">bitcointreasuries.net</a>, <a href="https://www.strategicethreserve.xyz/?ref=bankless.ghost.io" target="_blank">strategicethreserve.xyz</a>, corporate filings, and verified press releases</li>
-                <li>Equity market data is retrieved real-time via Google Finance for supported tickers, enabling market-cap based metrics</li>
+                <li>Treasury data is updated regularly and based on regulatory filings, company press releases, and on-chain data</li>
+                <li>Stock market data is retrieved real-time via Google Finance for supported tickers</li>
                 <li>Key metrics such as <strong>mNAV</strong> (Market Cap ÷ Crypto NAV), <strong>Premium/Discount</strong> ((mNAV − 1) × 100%), and <strong>TTMCR</strong> (Crypto NAV ÷ Market Cap) are calculated dynamically from the latest data</li>
             </ul>
-            """,
-            unsafe_allow_html=True
-        )
-
-    # Box 3: Upcoming Features
-    with st.container(border=False):
-
-        st.subheader("Upcoming Features")
-
-        st.markdown(
-            """
-            <ul>
-                <li>More details: purpose, historic data, funding vehicles, and more</li>
-                <li>Inclusion of new crypto assets, spot digital asset ETFs, and DeFi/smart contract-based treasuries</li>
-                <li>News and treasury announcements to track strategic moves in real time</li>
-            </ul>
-            </div>
             """,
             unsafe_allow_html=True
         )

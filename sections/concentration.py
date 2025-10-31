@@ -53,7 +53,7 @@ def _lorenz_points(s: pd.Series):
 
 
 def render_concentration():
-    st.title("Crypto Treasury Concentration")
+    #st.title("Crypto Treasury Concentration")
 
     base_df = st.session_state["data_df"]
     df_view = apply_filters(base_df)
@@ -73,7 +73,7 @@ def render_concentration():
         st.info("No data for the current filters.")
         return
 
-    with st.container(border=False):
+    with st.container(border=True):
         st.markdown("#### Gini Index & Lorenz Curve", help= "HHI and Gini coefficient tell if reserves are concentrated in a handful of players.")
 
         c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
@@ -155,29 +155,30 @@ def render_concentration():
         # Lorenz curve
         p, L = _lorenz_points(weights)
         fig = lorenz_curve_chart(p, L, asset=asset_for_color)
+        #with st.container(border=True):
         render_plotly(fig, filename=f"lorenz_{group_by.lower()}_{weight_mode.lower()}")
 
-        if show_table:
-            top_tbl = (weights
-                    .head(int(top_n))
-                    .rename("Weight")
-                    .to_frame())
-            total = weights.sum()
-            top_tbl["Share"] = top_tbl["Weight"] / total  # 0..1
+    if show_table:
+        top_tbl = (weights
+                .head(int(top_n))
+                .rename("Weight")
+                .to_frame())
+        total = weights.sum()
+        top_tbl["Share"] = top_tbl["Weight"] / total  # 0..1
 
-            # display copy (keep raw cols for math, add pretty/percent for UI)
-            disp = top_tbl.copy()
-            disp["Weight_fmt"] = disp["Weight"].map(lambda v: f"${v:,.0f}" if value_col == "USD Value" else f"{v:,.0f}")
-            disp["SharePct"] = (disp["Share"] * 100).round(4)  # 0..100 for ProgressColumn
+        # display copy (keep raw cols for math, add pretty/percent for UI)
+        disp = top_tbl.copy()
+        disp["Weight_fmt"] = disp["Weight"].map(lambda v: f"${v:,.0f}" if value_col == "USD Value" else f"{v:,.0f}")
+        disp["SharePct"] = (disp["Share"] * 100).round(4)  # 0..100 for ProgressColumn
 
- 
-            st.dataframe(
-                disp[["Weight_fmt", "SharePct"]],
-                width="stretch",
-                height=min(400, 38*(len(disp)+1)+6),
-                column_config={
-                    "Entity Name": st.column_config.TextColumn("Holder"),
-                    "Weight_fmt": st.column_config.TextColumn("Weight (USD)"),
-                    "SharePct": st.column_config.ProgressColumn("Share", min_value=0, max_value=100, format="%.2f%%"),
-                },
-            )
+
+        st.dataframe(
+            disp[["Weight_fmt", "SharePct"]],
+            width="stretch",
+            height=min(400, 38*(len(disp)+1)+6),
+            column_config={
+                "Entity Name": st.column_config.TextColumn("Holder"),
+                "Weight_fmt": st.column_config.TextColumn("Weight (USD)"),
+                "SharePct": st.column_config.ProgressColumn("Share", min_value=0, max_value=100, format="%.2f%%"),
+            },
+        )

@@ -5,23 +5,61 @@ from google.oauth2.service_account import Credentials
 
 # === Configure assets and CoinGecko mapping ===
 ASSETS = [
-    "BTC", 
-    "ETH", 
-    "SOL",
+    "BTC",
+    "ETH",
     "XRP",
+    "BNB",
+    "SOL",
+    "DOGE",
+    "TRX",
+    "ADA",
     "SUI",
     "LTC",
     "HYPE",
-    ]  
+    "TON",
+    "WLFI",
+    "PUMP",
+    "ATH",
+    "BONK",
+    "AVAX",
+    "CRO",
+    "LINK",
+    "BERA",
+    "TRUMP",
+    "ZIG",
+    "CORE",
+    "VAULTA",
+    "FLUID",
+]
+
 COINGECKO_IDS = {
-    "BTC": "bitcoin", 
+    "BTC": "bitcoin",
     "ETH": "ethereum",
     "XRP": "ripple",
+    "BNB": "binancecoin",
     "SOL": "solana",
+    "DOGE": "dogecoin",
+    "TRX": "tron",
+    "ADA": "cardano",
     "SUI": "sui",
     "LTC": "litecoin",
-    "HYPE":"hyperliquid",
-    }
+    "HYPE": "hyperliquid",
+    "TON": "the-open-network",
+    "WLFI": "world-liberty-financial",
+    "PUMP": "pump-fun",
+    "ATH": "aethir",
+    "BONK": "bonk",
+    "AVAX": "avalanche-2",
+    "CRO": "crypto-com-chain",
+    "LINK": "chainlink",
+    "BERA": "berachain-bera",
+    "TRUMP": "official-trump",
+    "ZIG": "zignaly",
+    "CORE": "coredaoorg",
+    "VAULTA": "vaulta",
+    "FLUID": "instadapp",
+}
+
 
 
 # === Google Sheet target ===

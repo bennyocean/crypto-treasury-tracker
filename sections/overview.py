@@ -9,38 +9,39 @@ from urllib.parse import urlencode, quote_plus
 
 from modules.kpi_helpers import render_kpis
 from analytics import log_table_render
-from modules.ui import btc_b64, eth_b64, sol_b64, sui_b64, ltc_b64, xrp_b64, hype_b64
+from modules.ui import btc_b64, eth_b64, sol_b64, sui_b64, ltc_b64, xrp_b64, hype_b64, bnb_b64, doge_b64, ada_b64, avax_b64, ath_b64, bera_b64, bonk_b64, link_b64, core_b64, cro_b64, trump_b64, pump_b64, ton_b64, trx_b64, wlfi_b64, zig_b64, vaulta_b64,fluid_b64
 from modules.pdf_helper import _table_pdf_bytes
 from modules.emojis import country_emoji_map
 from modules.data_loader import read_central_prices_from_sheet, get_events_for_entity_id_asset
 from modules.entity_dialog import show_entity_dialog
 
 
-
-# Supply column row-wise
 supply_caps = {
-    "BTC": 20_000_000,  
-    "ETH": 120_000_000,
-    "XRP": 60_000_000_000,
-    "BNB": 140_000_000,
-    "SOL": 540_000_000,
-    "SUI": 3_500_000_000,
-    "LTC": 76_000_000,
-    "HYPE": 270_000_000,
-    }
-
-TRUE_DAT_WHITELIST = {
-    "BTC": {"Strategy Inc.", "Twenty One Capital (XXI)", "Bitcoin Standard Treasury Company", "Metaplanet Inc.", "ProCap Financial, Inc", "Capital B", "H100 Group", 
-            "Bitcoin Treasury Corporation", "Treasury B.V.", "American Bitcoin Corp.", "Parataxis Holdings LLC", "Strive Asset Management", "ArcadiaB", "Cloud Ventures",
-            "Stacking Sats, Inc.", "Melanion Digital", "Sequans Communications S.A.", "Africa Bitcoin Corporation", "Empery Digital Inc.", "B HODL", "OranjeBTC", "Sobtree",
-            "kheAI Commerce", "ZOOZ Power Ltd.", "Semler Scientific, Inc.", "aifinyo AG"}, 
-    "ETH": {"BitMine Immersion Technologies, Inc.", "SharpLink Gaming", "The Ether Machine", "ETHZilla Corporation", "FG Nexus", "GameSquare Holdings", "Centaurus Energy Inc.", "Ethero"},
-    "SOL": {"Forward Industries, Inc.", "Upexi, Inc.", "DeFi Development Corp.", "Sharps Technology, Inc.", "Classover Holdings, Inc.", "Sol Strategies, Inc.", "Sol Treasury Corp.",
-            "SOL Global Investments Corp.", "Solana Company", "Lion Group Holding Ltd.", "Solmate Infrastructure"},
-    "LTC": {"Lite Strategy, Inc." , "Luxxfolio Holdings Inc."},
-    "XRP": set(),
-    "SUI": {"Lion Group Holding Ltd."},
-    "HYPE": {"Hyperliquid Strategies Inc", "Hyperion DeFi, Inc.", "Lion Group Holding Ltd."},
+    "BTC": 19_908_153,
+    "ETH": 120_707_840,
+    "XRP": 59_418_500_720,
+    "BNB": 139_287_622,
+    "SOL": 540_069_892,
+    "DOGE": 150_552_856_383,
+    "TRX": 94_679_730_764,
+    "ADA": 36_448_472_341,
+    "SUI": 3_511_924_479,
+    "LTC": 76_198_926,
+    "HYPE": 270_772_999,
+    "TON": 2_520_529_386,
+    "WLFI": 27_255_958_920,
+    "PUMP": 354_000_000_000,
+    "ATH": 14_234_731_752,
+    "BONK": 77_419_592_329_436,
+    "AVAX": 426_584_745,
+    "CRO": 36_069_453_408,
+    "LINK": 696_849_970,
+    "BERA": 129_478_858,
+    "TRUMP": 199_999_973,
+    "ZIG": 1_408_940_795,
+    "CORE": 1_015_193_271,
+    "VAULTA": 1_599_315_411,
+    "FLUID": 77_753_292,
 }
 
 TYPE_PALETTE = {
@@ -50,6 +51,34 @@ TYPE_PALETTE = {
     "Non-Profit Organization": (128, 217, 183),        # green
     "Government": (247, 198, 148),      # slate
     "Other": (222, 217, 217),           # white
+}
+
+logo_map = {
+    "BTC": f"data:image/png;base64,{btc_b64}",
+    "ETH": f"data:image/png;base64,{eth_b64}",
+    "XRP": f"data:image/png;base64,{xrp_b64}",
+    "BNB": f"data:image/png;base64,{bnb_b64}",
+    "SOL": f"data:image/png;base64,{sol_b64}",
+    "DOGE": f"data:image/png;base64,{doge_b64}",
+    "TRX": f"data:image/png;base64,{trx_b64}",
+    "ADA": f"data:image/png;base64,{ada_b64}",
+    "SUI": f"data:image/png;base64,{sui_b64}",
+    "LTC": f"data:image/png;base64,{ltc_b64}",
+    "HYPE": f"data:image/png;base64,{hype_b64}",
+    "TON": f"data:image/png;base64,{ton_b64}",
+    "WLFI": f"data:image/png;base64,{wlfi_b64}",
+    "PUMP": f"data:image/png;base64,{pump_b64}",
+    "ATH": f"data:image/png;base64,{ath_b64}",
+    "BONK": f"data:image/png;base64,{bonk_b64}",
+    "AVAX": f"data:image/png;base64,{avax_b64}",
+    "CRO": f"data:image/png;base64,{cro_b64}",
+    "LINK": f"data:image/png;base64,{link_b64}",
+    "BERA": f"data:image/png;base64,{bera_b64}",
+    "TRUMP": f"data:image/png;base64,{trump_b64}",
+    "ZIG": f"data:image/png;base64,{zig_b64}",
+    "CORE": f"data:image/png;base64,{core_b64}",
+    "VAULTA": f"data:image/png;base64,{vaulta_b64}",
+    "FLUID": f"data:image/png;base64,{fluid_b64}",
 }
 
 def pretty_usd(x):
@@ -115,9 +144,9 @@ st.session_state.setdefault("active_dialog", None)
 
 def render_overview():
 
-    st.title("Crypto Treasury Dashboard")
+    #st.title("Crypto Treasury Dashboard")
 
-    st.markdown("")
+    #st.markdown("")
 
     df = st.session_state["data_df"]
 
@@ -149,40 +178,60 @@ def render_overview():
         cols.insert(insert_pos, "% of Supply")
         table = table[cols]
 
-    c1_kpi, c2_kpi, c3_kpi, c4_kpi, c5_kpi = st.columns([1,0.5,0.5,0.5,0.5])
+    # --- all list options ---
+    options = ["All Assets", "DAT Wrappers", "Pending"] + sorted(
+        table["Crypto Asset"].dropna().unique().tolist()
+    )
 
-    # all list option
-    options = ["All", "DATCOs"] + sorted(table["Crypto Asset"].dropna().unique().tolist())
-
-    with c1_kpi:
-        list_choice = st.pills(
-            "Select Asset List",
-            options=options,
-            selection_mode="single",
-            default="All",
-            label_visibility="visible",
-            key="tbl_asset_filter",
-        )
+    list_choice = st.pills(
+        "Select Asset List",
+        options=options,
+        selection_mode="single",
+        default="All Assets",
+        label_visibility="visible",
+        key="tbl_asset_filter",
+    )
 
     # --- normalize fallback ---
-    list_choice = (list_choice or "All")
+    list_choice = list_choice or "All Assets"
 
-    # apply selection
-    if list_choice == "DATCOs":
-        assets_present = sorted(table["Crypto Asset"].dropna().unique().tolist())
-        whitelist_sets = [TRUE_DAT_WHITELIST.get(a, set()) for a in assets_present]
-        active_whitelist = set().union(*whitelist_sets) if whitelist_sets else set()
-        if "Entity Name" in table.columns:
-            names_upper = table["Entity Name"].astype(str)
-            table = table[names_upper.isin(active_whitelist)]
-        asset_choice = "All"
-    else:
-        asset_choice = list_choice
-        if asset_choice != "All":
-            table = table[table["Crypto Asset"] == asset_choice]
+    # --- apply selection ---
+    # --- apply selection ---
+    et_global = st.session_state.get("flt_entity_type", "All")
+
+    # Default
+    asset_choice = list_choice
+
+    # 1. DAT Wrappers pill clicked
+    if list_choice == "DAT Wrappers":
+        if "DAT" in table.columns:
+            table = table[pd.to_numeric(table["DAT"], errors="coerce").fillna(0).astype(int) == 1]
+        asset_choice = "All Assets"
+
+    # 2. Pending pill clicked
+    elif list_choice == "Pending":
+        if "status" in table.columns:
+            mask = table["status"].astype(str).str.lower().isin(
+                ["pending", "pending_announced", "pending_funded"]
+            ) | table["status"].astype(str).str.contains("pending", case=False, na=False)
+            table = table[mask].copy()
+        else:
+            st.warning("No status column found in the dataset.")
+            table = table.iloc[0:0]
+        asset_choice = "Pending"
+
+    # 3. Regular asset pill clicked
+    elif list_choice not in ["All Assets"]:
+        table = table[table["Crypto Asset"] == list_choice]
+
+    # 4. Global filter active for DAT Wrappers → always enforce DAT == 1,
+    #    even when clicking specific assets.
+    if et_global == "DAT Wrappers" and "DAT" in table.columns:
+        table = table[pd.to_numeric(table["DAT"], errors="coerce").fillna(0).astype(int) == 1]
+
 
     # safe downstream usage
-    fname_asset = "all" if asset_choice == "All" else asset_choice.lower()
+    fname_asset = "all" if asset_choice == "All Assets" else asset_choice.lower()
 
     st.markdown("")
 
@@ -191,11 +240,11 @@ def render_overview():
     # --- search by entity name ---
     with c1:
         name_query = st.text_input(
-            "Search Entity",
+            "Search Treasury Holder",
             value="",
             placeholder="Type a company name…",
             key="tbl_search",
-            help="Filter the list by entity name."
+            help="Filter the list by holder name."
         )
 
     if name_query:
@@ -223,7 +272,7 @@ def render_overview():
         if "ui_entity_type" not in st.session_state:
             st.session_state["ui_entity_type"] = st.session_state.get("flt_entity_type", "All")
         sel_et = st.selectbox(
-            "Select Entity Type",
+            "Select Holder Type",
             options=st.session_state["opt_entity_types"],
             key="ui_entity_type",
         )
@@ -233,7 +282,7 @@ def render_overview():
         if "ui_country" not in st.session_state:
             st.session_state["ui_country"] = st.session_state.get("flt_country", "All")
         sel_co = st.selectbox(
-            "Select Country/Region",
+            "Select Country",
             options=st.session_state["opt_countries"],
             key="ui_country",
         )
@@ -241,14 +290,14 @@ def render_overview():
 
     with c4:
         row_count = st.number_input(
-            f"Adjust Rows (Max. {max_rows})",
+            f"Expand Table (Max. {max_rows})",
             min_value=min_rows,
             max_value=max_rows,
             value=start_val,     # safe starting value
             step=1,
             help=(
                 "Select number of rows to display, sorted by USD value. "
-                "Some entities hold more than one crypto asset and are shown separately."
+                "Some treasuries hold more than one crypto asset and are shown separately."
             ),
             key="tbl_rows",
         )
@@ -256,111 +305,203 @@ def render_overview():
     # apply global filters plus the local asset toggle
     filtered = table_search.copy()
 
-    assets_sel = [asset_choice] if asset_choice != "All" else st.session_state.get("flt_assets", st.session_state["opt_assets"])
-    filtered = filtered[filtered["Crypto Asset"].isin(assets_sel)]
+    if asset_choice not in ["All Assets", "Pending"]:
+        assets_sel = [asset_choice]
+        filtered = filtered[filtered["Crypto Asset"].isin(assets_sel)]
+    else:
+        assets_sel = st.session_state.get("flt_assets", st.session_state["opt_assets"])
 
     et = st.session_state.get("flt_entity_type", "All")
-    if et != "All":
+
+    # Apply entity filter only when appropriate
+    if et == "DAT Wrappers":
+        # Always enforce DAT == 1 when global DAT filter is active
+        if "DAT" in filtered.columns:
+            filtered = filtered[pd.to_numeric(filtered["DAT"], errors="coerce").fillna(0).astype(int) == 1]
+    elif et != "All":
         filtered = filtered[filtered["Entity Type"] == et]
+
+
+
 
     co = st.session_state.get("flt_country", "All")
     if co != "All":
         filtered = filtered[filtered["Country"] == co]
 
-    filtered = filtered[filtered["USD Value"] > 0]
 
     # ensure uppercase tickers for matching
     filtered["Ticker"] = filtered["Ticker"].astype(str).str.upper()
 
-    # build the active whitelist based on current asset selection
-    if asset_choice != "All":
-        active_whitelist = set().union(*(TRUE_DAT_WHITELIST.get(a, set()) for a in [asset_choice]))
+    # --- KPI METRICS ---
+    c1_kpi, c2_kpi, c3_kpi, c4_kpi, c5_kpi = st.columns(5)
+
+    # Compute aggregates
+    total_nav_all = float(df["USD Value"].sum())
+    total_nav = filtered["USD Value"].sum(skipna=True)
+    total_target = filtered["target_usd"].fillna(0).sum()
+    pending_mask = filtered["status"].astype(str).str.contains("pending", case=False, na=False)
+    pending_value = filtered.loc[pending_mask, "target_usd"].fillna(0).sum()
+
+    # Adaptive denominator: if all pending, compare to total_target; else, compare to total_nav
+    denominator = total_nav if total_nav > 0 else total_target
+    pending_share = (pending_value / denominator * 100) if denominator > 0 else 0
+
+    # % of Target covered by real NAV
+    coverage = (total_nav / total_nav_all * 100) if total_nav_all > 0 else 0
+
+    # --- Identify top asset by actual holdings, with graceful fallbacks ---
+    if "USD Value" in filtered.columns and filtered["USD Value"].sum() > 0:
+        metric_col = "USD Value"
+        total_val = filtered["USD Value"].sum()
+    elif "target_usd" in filtered.columns and filtered["target_usd"].sum() > 0:
+        metric_col = "target_usd"
+        total_val = filtered["target_usd"].sum()
+    elif "target_units" in filtered.columns and filtered["target_units"].sum() > 0:
+        metric_col = "target_units"
+        total_val = filtered["target_units"].sum()
     else:
-        active_assets = st.session_state.get("flt_assets", st.session_state["opt_assets"])
-        active_whitelist = set().union(*(TRUE_DAT_WHITELIST.get(a, set()) for a in active_assets))
+        metric_col, total_val = None, 0
 
-    # valid rows for averages
-    valid = filtered.replace([np.inf, -np.inf], np.nan)
-    valid = valid[(valid["mNAV"] > 0) & (valid["TTMCR"] > 0)]
+    if metric_col and not filtered.empty:
+        asset_sums = (
+            filtered.groupby("Crypto Asset", as_index=False)[metric_col]
+            .sum()
+            .sort_values(metric_col, ascending=False)
+        )
+        if not asset_sums.empty:
+            top_asset = asset_sums.iloc[0]["Crypto Asset"]
+            top_asset_share = (
+                asset_sums.iloc[0][metric_col] / total_val * 100 if total_val > 0 else 0
+            )
+        else:
+            top_asset, top_asset_share = "-", 0
+    elif not filtered.empty:
+        top_asset, top_asset_share = filtered.iloc[0]["Crypto Asset"], 100
+    else:
+        top_asset, top_asset_share = "-", 0
 
-    # Aggregate mNAV + TTMCR KPIs
-    avg_mnav = valid["mNAV"].median()
-    avg_ttmcr = valid["TTMCR"].median()
-    valid_true = valid[valid["Entity Name"].isin(active_whitelist)]
-    avg_mnav_true = valid_true["mNAV"].median()
+    dat_count = (
+        filtered.loc[pd.to_numeric(filtered["DAT"], errors="coerce").fillna(0).astype(int) == 1, "Entity Name"]
+        .nunique()
+    )
 
-    # DATCO
-    sub_2 = filtered.head(int(row_count)).copy()
-    
-    total_entities = df["Entity Name"].nunique()
+    def _fmt_usd(v): return pretty_usd(v)
+    def _fmt_pct(v): return f"{v:.1f}%"
 
-    filtered_count = sub_2.shape[0]
-    # recompute DATCO mask on the sliced data
-    names_sub = sub_2["Entity Name"].astype(str)
-    datco_mask_sub = names_sub.isin(active_whitelist)
-
-    # --- DATCO Adoption (count + % of Crypto-NAV) ---
-    tickers_upper = filtered["Entity Name"].astype(str)
-    datco_mask    = tickers_upper.isin(active_whitelist)
-
-    # number of DATCO companies in current selection
-    datco_count   = tickers_upper[datco_mask].nunique()
-
-    nav_total = float(sub_2["USD Value"].sum())
-    nav_datco = float(sub_2.loc[datco_mask_sub, "USD Value"].sum())
-
-    def _fmt(x, pct=False):
-        if x is None or (isinstance(x, float) and np.isnan(x)):
-            return "-"
-        return f"{x:,.2f}%" if pct else f"{x:,.2f}"
+    with c1_kpi:
+        with st.container(border=True):
+            st.metric(
+                "Selected Market Value",
+                _fmt_usd(total_nav),
+                help="Total realized value of selected treasuries in USD."
+            )
 
     with c2_kpi:
         with st.container(border=True):
             st.metric(
-                "Total Crypto-NAV (selected)",
-                f"{pretty_usd(nav_total)}",
-                help=("Total USD value of selected crypto treasury entities (Crypto-NAV).")
+                "Treasury Coverage",
+                _fmt_pct(coverage),
+                help="Share of total known crypto treasury value represented by this selection."
             )
 
     with c3_kpi:
         with st.container(border=True):
-            st.metric(
-                f"Number of Holders (selected)",
-                filtered_count,
-                help=("Current number view of selected rows (entities).")
-            )
-
+            logo_uri = logo_map.get(top_asset, "")
+            if logo_uri:
+                st.metric(
+                    "Top Asset Dominance",
+                    "",
+                    help="Percentage of the largest crypto asset within the current selection."
+                )
+                st.markdown(
+                    f"""
+                    <div style="
+                        display: flex;
+                        align-items: left;
+                        justify-content: left;
+                        gap: 14px;
+                        margin-top: -13px;
+                        margin-bottom: 50px;
+                        height: 10px;
+                        line-height: 1;
+                    ">
+                        <img src="{logo_uri}" width="38" height="38" style="border-radius:0px; vertical-align:middle; margin-top:0px;" />
+                        <span style="font-size:2.4rem; font-weight:400; vertical-align:middle;">
+                            {_fmt_pct(top_asset_share)}
+                        </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                #st.markdown("")
+            else:
+                st.metric(
+                    "Top Asset Dominance",
+                    f"{top_asset}: {_fmt_pct(top_asset_share)}",
+                    help="Percentage of the largest crypto asset within the current selection."
+                )
+        
     with c4_kpi:
         with st.container(border=True):
             st.metric(
-                "DATCO mNAV (Median)",
-                f"{_fmt(avg_mnav_true)}×",
-                help="Median market to net asset value (mNAV) filtered for Digital Asset Treasury Companies (DATCO) only, excluding entities that use crypto assets for other strategic or operational purposes (e.g., mining activities). Current DATCOs include the following tickers (where data is publicly available): MSTR, NASDAQ:CEP, BSTR, MTPLF, CCCM, ALCPB, OTCMKTS:HOGPF, BTCT.V, MKBN, ABTC, 288330.KQ, BMNR, SBET, ETHM, ETHZ, FGNX, GAME, CTARF, UPXI, DFDV, STSS, KIDZ, STKE, and LITS."
+                "\# of DAT Wrappers",
+                dat_count,
+                help="Number of entities classified as Digital Asset Treasury Vehicles (DATs) included in the selected view."
             )
 
     with c5_kpi:
         with st.container(border=True):
             st.metric(
-                "TTMCR (Median)",
-                _fmt(avg_ttmcr, pct=True),
-                help="The Treasury-to-Market Cap Ratio (TTMCR) shows the share of a company's value represented by held crypto reserves (unweighted). It is calculated by dividing the crypto treasury (USD value) by the company's current market cap, shown as a percentage. For example, a TTMCR of 5% means that 5% of the company's market cap is backed by crypto assets."
+                "Treasury Pipeline",
+                _fmt_usd(total_target),
+                help="Total sum of known acquisition value targets across all holders."
             )
 
-    sub = filtered.head(row_count)
-    sub = sub.reset_index(drop=True)
-    sub.index = sub.index + 1
-    sub.index.name = "Rank"
+    # Optional 5th KPI (add if space allows)
+    # with c5_kpi:
+    #     with st.container(border=True):
+    #         st.metric(
+    #             "Entity Diversification Index",
+    #             _fmt_pct(div_index * 100),
+    #             help="Inverse of concentration across entities; higher = more diverse."
+    #         )
+
+
+    _status_order = {"active": 0, "pending": 1, "inactive": 2}
+    filtered["__status_order"] = (
+        filtered["status"].astype(str).str.lower().map(_status_order).fillna(1).astype(int)
+    )
+
+    # Ensure numeric for sort keys
+    filtered["Holdings (Unit)"] = pd.to_numeric(filtered["Holdings (Unit)"], errors="coerce").fillna(0)
+    filtered["USD Value"] = pd.to_numeric(filtered["USD Value"], errors="coerce").fillna(0)
+
+    filtered = filtered.sort_values(
+        by=["__status_order", "USD Value", "Holdings (Unit)", "Entity Name"],
+        ascending=[True, False, False, False],
+        kind="mergesort",
+    ).drop(columns="__status_order", errors="ignore")
+
+    sub = filtered.head(row_count).reset_index(drop=True)
+    sub["__row_rank"] = np.arange(1, len(sub) + 1)
+
+    sub["__row_rank"] = np.arange(1, len(sub) + 1)
+
 
     # --- RANKS on the full dataset (not filtered) ---
     df_all = st.session_state["data_df"].copy()
 
-    # Global rank by USD Value (desc)
-    _global_sorted = df_all.sort_values("USD Value", ascending=False).copy()
+    _pending = {"pending_funded", "pending_announced"}
+    df_all_active = df_all[~df_all["status"].isin(_pending)].copy()
+
+    # Global rank by USD Value
+    _global_sorted = df_all_active.sort_values("USD Value", ascending=False).copy()
     _global_sorted["__global_rank"] = np.arange(1, len(_global_sorted) + 1)
 
-    # Per-asset rank by USD Value (desc)
-    _asset_sorted = df_all.sort_values(["Crypto Asset", "USD Value"], ascending=[True, False]).copy()
+    # Per-asset rank by USD Value
+    _asset_sorted = df_all_active.sort_values(["Crypto Asset", "USD Value"], ascending=[True, False]).copy()
     _asset_sorted["__asset_rank"] = _asset_sorted.groupby("Crypto Asset").cumcount() + 1
+
 
     # Lookup dicts by (Entity Name, Crypto Asset)
     _global_rank_map = {
@@ -371,14 +512,29 @@ def render_overview():
         (r["Entity Name"], r["Crypto Asset"]): int(r["__asset_rank"])
         for _, r in _asset_sorted[["Entity Name", "Crypto Asset", "__asset_rank"]].iterrows()
     }
+    # Determine display ranks per row, hiding ranks for pending rows
+    is_pending_sub = sub["status"].isin(_pending)
+
+    sub["Rank"] = np.where(is_pending_sub, "—", sub["__row_rank"])
+
+    sub["Global Rank"] = [
+        _global_rank_map.get((e, a)) if not p else "—"
+        for e, a, p in zip(sub["Entity Name"], sub["Crypto Asset"], is_pending_sub)
+    ]
+
+    sub["Asset Rank"] = [
+        _asset_rank_map.get((e, a)) if not p else "—"
+        for e, a, p in zip(sub["Entity Name"], sub["Crypto Asset"], is_pending_sub)
+    ]
 
     # --- Aggregate global rank by total Crypto-NAV across all assets ---
     _df_agg = (
-        df_all.groupby("Entity Name", as_index=False)["USD Value"]
+        df_all_active.groupby("Entity Name", as_index=False)["USD Value"]
             .sum()
             .sort_values("USD Value", ascending=False)
             .reset_index(drop=True)
     )
+
     _df_agg["__agg_global_rank"] = np.arange(1, len(_df_agg) + 1)
     _agg_global_rank_map = dict(zip(_df_agg["Entity Name"], _df_agg["__agg_global_rank"]))
 
@@ -400,9 +556,6 @@ def render_overview():
     # Prepend flag to Entity Name
     display["Entity"] = flag_series.fillna("🏳️") + " " + display["Entity Name"].astype("string")
 
-    #Replace Country column for display with the emoji
-    #display["Country"] = flag_series
-
     # show dashes for missing values
     display["Ticker"] = (display["Ticker"].replace({"": "-"}).astype("string").fillna("-"))
 
@@ -414,15 +567,39 @@ def render_overview():
     display["Premium_disp"] = np.where(_no_metrics, "-", display["Premium"].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "-"))
     display["TTMCR_disp"]   = np.where(_no_metrics, "-", display["TTMCR"].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "-"))
 
-    logo_map = {
-        "BTC": f"data:image/png;base64,{btc_b64}",
-        "ETH": f"data:image/png;base64,{eth_b64}",
-        "SOL": f"data:image/png;base64,{sol_b64}",
-        "XRP": f"data:image/png;base64,{xrp_b64}",
-        "SUI": f"data:image/png;base64,{sui_b64}",
-        "LTC": f"data:image/png;base64,{ltc_b64}",
-        "HYPE": f"data:image/png;base64,{hype_b64}",
+    status_map = {
+        "active": "Active",
+        "pending_funded": "Pending",
+        "pending_announced": "Pending",
+        "inactive": "Inactive",
     }
+    display["Status"] = display["status"].astype(str).str.lower().map(status_map).fillna("Active")
+
+    display["Target USD"] = display["target_usd"].apply(
+        lambda v: pretty_usd(float(v)) if pd.notna(v) and float(v) > 0 else "–"
+    )
+
+    # --- compute target vs. holdings progress ---
+    holdings_units = pd.to_numeric(display["Holdings (Unit)"], errors="coerce")
+    target_units   = pd.to_numeric(display["target_units"], errors="coerce")
+    usd_value      = pd.to_numeric(display["USD Value"], errors="coerce")
+    target_usd     = pd.to_numeric(display["target_usd"], errors="coerce")
+
+    # base use units if available
+    progress = pd.Series(np.nan, index=display.index, dtype="float64")
+    has_units = target_units.notna() & (target_units > 0)
+    progress.loc[has_units] = (holdings_units.loc[has_units] / target_units.loc[has_units] * 100).clip(0, 100)
+
+    # fallback only when no valid unit target but USD target exists
+    has_usd_target = (~has_units) & target_usd.notna() & (target_usd > 0)
+    progress.loc[has_usd_target] = (usd_value.loc[has_usd_target] / target_usd.loc[has_usd_target] * 100).clip(0, 100)
+
+    # do NOT fill missing here so cells without any target stay visually empty
+    display["Target Units Progress"] = progress.round(0)
+
+
+    display["Source"] = display["source_url"].fillna("").astype(str)
+
     display["Token"] = display["Crypto Asset"].map(lambda a: logo_map.get(a, ""))
 
     display["Market Cap"] = display["Market Cap"].map(pretty_usd)
@@ -430,10 +607,13 @@ def render_overview():
     # Add a per-row Open button column
 
     display = display[[
-        "Entity", "Ticker", "Entity Type",                                          # Meta data
-        "Token", "Crypto Asset", "Holdings (Unit)", "% of Supply", "USD Value",              # Crypto data
-        "Market Cap", "mNAV_disp", "Premium_disp", "TTMCR_disp"               # Market data
+        "Rank",
+        "Status", "Entity", "Ticker", "Entity Type", "Open",
+        "Token", "Crypto Asset", "Holdings (Unit)", "Target Units Progress", "% of Supply", "USD Value",
+        "Market Cap", "mNAV_disp", "Premium_disp", "TTMCR_disp",
+        "Source"
     ]]
+
 
     NEUTRAL_POS = "#43d1a0"
     NEUTRAL_NEG = "#f94144"
@@ -483,26 +663,33 @@ def render_overview():
     options_ent_type=["Public Company","Private Company","Government","Non-Profit Organization","DAO","Other"]
     color_ent_type=["#7bc5ed", "#f759b0", "#f7c694", "#80d9b7",  "#eaf26f", "#ded9d9"]
 
+    options_status=["Active","Pending","Inactive"]
+    color_status=["#00B894",  "#F1C40F", "#ADB5BD"]
 
     # Render dashboard table
     edited = st.data_editor(
         display,
         width="stretch",
         height=height,
-        hide_index=False,
+        hide_index=True,
         disabled=[c for c in display.columns if c != "Open"],  # read-only except checkbox
         column_config={
+            "Rank": st.column_config.TextColumn("Rank"),
+            "Status": st.column_config.MultiselectColumn("Status", width="small", options=options_status, color=color_status),
             "Token": st.column_config.ImageColumn("Token"),
             "Crypto Asset": st.column_config.TextColumn("Symbol"),
             "Entity Type": st.column_config.MultiselectColumn("Holder Type", options=options_ent_type, color=color_ent_type),
+            "Open": st.column_config.CheckboxColumn("Info",help="Click to open details for this entity.",default=False),
             "Holdings (Unit)": st.column_config.NumberColumn("Holdings", format="%d"),
+            "Target Units Progress": st.column_config.ProgressColumn("Progress",help="Progress toward unit target or USD target when units unknown",format="%d%%",min_value=0,max_value=100,width="small",),
             "% of Supply": st.column_config.NumberColumn("% of Supply",format="%.2f%%"),
             "Market Cap": st.column_config.TextColumn("Market Cap", width="small"),
             "USD Value": st.column_config.TextColumn("Crypto-NAV", width="small"),
             "mNAV_disp": st.column_config.TextColumn("mNAV", width="small"),
             "Premium_disp": st.column_config.TextColumn("Premium", width="small"),
             "TTMCR_disp": st.column_config.TextColumn("TTMCR", width="small"),
-            "Open": st.column_config.CheckboxColumn("Details",help="Click to open details for this entity.",default=False),
+            #"Target USD": st.column_config.TextColumn("Target USD", width="small"),
+            "Source": st.column_config.LinkColumn("Source", display_text="Open link", width="small"),
         },
         key=f"overview_editor_{rev}",
     )
@@ -540,7 +727,6 @@ def render_overview():
             st.rerun(scope="app")
 
 
-
     # --- If a dialog is queued, render it now (checkboxes are already cleared) ---
     ad = st.session_state.get("active_dialog")
     if ad and isinstance(ad.get("list_keys"), list):
@@ -569,7 +755,6 @@ def render_overview():
                 # Build multi-asset rows using entity_id
                 df_all = st.session_state["data_df"]
                 rows_entity = df_all[df_all["entity_id"] == eid].copy()
-                rows_entity = rows_entity[rows_entity["USD Value"] > 0]
 
                 def _first_non_empty(series_like, default=""):
                     try:
@@ -606,8 +791,27 @@ def render_overview():
                 prem    = row.get("Premium", float("nan"))
                 ttmcr   = row.get("TTMCR", float("nan"))
 
+                status_label = {
+                    "active": "Active",
+                    "pending_funded": "Funded",
+                    "pending_announced": "Announced",
+                    "inactive": "Inactive",
+                }.get(str(row.get("status", "active")).lower(), "Active")
+
+                target_usd_disp = (
+                    pretty_usd(float(row.get("target_usd"))) 
+                    if pd.notna(row.get("target_usd")) and float(row.get("target_usd") or 0) > 0 
+                    else "–"
+                )
+                target_units_disp = (
+                    f"{float(row.get('target_units')):,.0f}"
+                    if pd.notna(row.get("target_units")) and float(row.get("target_units") or 0) > 0 
+                    else "–"
+                )
+                source_url = (row.get("source_url") or "").strip()
+
                 etype_badge = _badge_svg_uri(str(etype), TYPE_PALETTE.get(str(etype), (250, 250, 250)), h=22)
-                is_datco = str(name).strip().lower() in {n.strip().lower() for n in TRUE_DAT_WHITELIST.get(asset, set())}
+                is_datco = bool(int(row.get("DAT", 0)))
 
                 prices_cg, _ = read_central_prices_from_sheet() or ({}, None)
                 current_price     = prices_cg.get(asset, float("nan"))
@@ -645,6 +849,11 @@ def render_overview():
                         mnav=mnav,
                         premium=prem,
                         ttmcr=ttmcr,
+
+                        status=status_label,
+                        target_usd=target_usd_disp,
+                        target_units=target_units_disp,
+                        source_url=source_url,
 
                         sector=sector,
                         industry=industry,

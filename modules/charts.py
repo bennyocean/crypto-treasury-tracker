@@ -5,10 +5,42 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.colors import qualitative
 from modules.emojis import country_emoji_map
+from modules.flow_utils import decompose_asset
 
 
-ASSETS_ORDER = ["BTC","ETH","SOL","XRP","BNB","SUI","LTC", "HYPE"]  # stable order for stacking/colors
-COLORS = {"BTC":"#f7931a","ETH":"#6F6F6F","XRP":"#00a5df","BNB":"#f0b90b","SOL":"#dc1fff", "SUI":"#C0E6FF", "LTC":"#345D9D", "HYPE":"#97fce4"}
+ASSETS_ORDER = [
+    "BTC", "ETH", "SOL", "XRP", "BNB",
+    "SUI", "LTC", "HYPE", "DOGE", "TRX",
+    "ADA", "TON", "WLFI", "PUMP", "ATH",
+    "BONK", "AVAX", "CRO", "LINK", "BERA",
+    "TRUMP", "ZIG", "CORE", "VAULTA", "FLUID"
+]
+COLORS = {"BTC":"#f7931a",
+          "ETH":"#6F6F6F",
+          "XRP":"#00a5df",
+          "BNB":"#f0b90b",
+          "SOL":"#dc1fff", 
+          "SUI":"#C0E6FF", 
+          "LTC":"#345D9D",
+          "HYPE":"#97fce4",
+          "DOGE":  "#c2a633",
+          "TRX":   "#ef0027",
+          "ADA":   "#1b33ad",
+          "TON":   "#0098ea",
+          "WLFI":  "#FEED8B",
+          "PUMP":  "#53d693",
+          "ATH":   "#cff54c",
+          "BONK":  "#f49317",
+          "AVAX":  "#f4394b",
+          "CRO":   "#112d74",
+          "LINK":  "#45ace2",
+          "BERA":  "#814626",
+          "TRUMP": "#fdf7c4",
+          "ZIG":   "#3db6b2",
+          "CORE":  "#f79620",
+          "VAULTA": "#170515",
+          "FLUID": "#3a74ff",
+          }
 TYPE_PALETTE = {
     "Public Company": (123, 197, 237),  # blue
     "Private Company": (247, 89, 176), # rose
@@ -18,7 +50,37 @@ TYPE_PALETTE = {
     "Other": (222, 217, 217),           # white
 }
 COLOR_MAP = {k: f"rgb({r},{g},{b})" for k, (r, g, b) in TYPE_PALETTE.items()}
+supply_caps = {
+    "BTC": 19_908_153,
+    "ETH": 120_707_840,
+    "XRP": 59_418_500_720,
+    "BNB": 139_287_622,
+    "SOL": 540_069_892,
+    "DOGE": 150_552_856_383,
+    "TRX": 94_679_730_764,
+    "ADA": 36_448_472_341,
+    "SUI": 3_511_924_479,
+    "LTC": 76_198_926,
+    "HYPE": 270_772_999,
+    "TON": 2_520_529_386,
+    "WLFI": 27_255_958_920,
+    "PUMP": 354_000_000_000,
+    "ATH": 14_234_731_752,
+    "BONK": 77_419_592_329_436,
+    "AVAX": 426_584_745,
+    "CRO": 36_069_453_408,
+    "LINK": 696_849_970,
+    "BERA": 129_478_858,
+    "TRUMP": 199_999_973,
+    "ZIG": 1_408_940_795,
+    "CORE": 1_015_193_271,
+    "VAULTA": 1_599_315_411,
+    "FLUID": 77_753_292,
+}
 default_blue = "#66cded"
+
+NEUTRAL_POS = "#43d1a0"
+NEUTRAL_NEG = "#f94144"
 
 WATERMARK_TEXT="cryptotreasurytracker.xyz"
 
@@ -37,6 +99,327 @@ def format_usd(value):
     else:
         return f"{sign}${abs_val:.0f}"
 
+def pretty_usd(x):
+    if pd.isna(x):
+        return "-"
+    ax = abs(x)
+    if ax >= 1e12:  return f"${x/1e12:.2f}T"
+    if ax >= 1e9:  return f"${x/1e9:.2f}B"
+    if ax >= 1e6:  return f"${x/1e6:.2f}M"
+    if ax >= 1e3:  return f"${x/1e3:.2f}K"
+    return f"${x:,.0f}"
+
+def _coerce_num(s: pd.Series) -> pd.Series:
+    """Parse numbers from both US and EU formats. Returns float Series."""
+    s1 = pd.to_numeric(s, errors="coerce")
+    if s1.isna().mean() > 0.5:
+        s_alt = (s.astype(str)
+                   .str.replace(r"\s", "", regex=True)
+                   .str.replace(".", "", regex=False)
+                   .str.replace(",", ".", regex=False))
+        s1 = pd.to_numeric(s_alt, errors="coerce")
+    return s1
+
+def _prep_history(hist: pd.DataFrame) -> pd.DataFrame:
+    """Normalize columns, ensure numerics, derive Price USD if missing, ffill/bfill per asset."""
+    h = hist.copy()
+    if "Date" not in h.columns:
+        if "date" in h.columns:
+            h["Date"] = pd.to_datetime(h["date"])
+        else:
+            h["Date"] = pd.to_datetime(dict(year=h["Year"], month=h["Month"], day=1), errors="coerce")
+
+    h = h.rename(columns=lambda c: str(c).strip())
+    alias = {
+        "Price": "Price USD", "Price_USD": "Price USD",
+        "USD": "USD Value",   "USD_Value": "USD Value",
+        "Holdings": "Holdings (Unit)", "Units": "Holdings (Unit)",
+    }
+    for k, v in alias.items():
+        if k in h.columns and v not in h.columns:
+            h.rename(columns={k: v}, inplace=True)
+
+    for col in ["Holdings (Unit)", "USD Value", "Price USD"]:
+        if col not in h.columns:
+            h[col] = np.nan
+
+    h["Holdings (Unit)"] = _coerce_num(h["Holdings (Unit)"])
+    h["USD Value"]       = _coerce_num(h["USD Value"])
+    h["Price USD"]       = _coerce_num(h["Price USD"])
+
+    need_p = h["Price USD"].isna()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        implied = h["USD Value"] / h["Holdings (Unit)"]
+    h.loc[need_p, "Price USD"] = implied[need_p]
+
+    need_usd = h["USD Value"].isna() & h["Price USD"].notna() & h["Holdings (Unit)"].notna()
+    h.loc[need_usd, "USD Value"] = h.loc[need_usd, "Price USD"] * h.loc[need_usd, "Holdings (Unit)"]
+
+    h = h.sort_values(["Crypto Asset", "Date"]).reset_index(drop=True)
+    h["Price USD"] = h["Price USD"].groupby(h["Crypto Asset"], sort=False).transform(lambda s: s.ffill().bfill())
+    return h
+
+
+def render_kpi_sparkline(snapshots_df: pd.DataFrame, usd_pct_delta: float | None = None):
+
+    if snapshots_df is None or snapshots_df.empty or "total_usd" not in snapshots_df.columns:
+        st.info("No snapshot data available for KPI chart.")
+        return
+
+    chart_series = (
+        snapshots_df.sort_values("date_utc").tail(30)[["date_utc", "total_usd"]]
+    )
+    chart_series["hover_text"] = [
+        f"{d.strftime('%b.')} {d.day}: <b>{pretty_usd(v)}</b>"
+        for d, v in zip(chart_series["date_utc"], chart_series["total_usd"])
+    ]
+
+    color_line = "#43d1a0" if usd_pct_delta is None or usd_pct_delta >= 0 else "#FF4B4B"  # Streamlit red
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=chart_series["date_utc"],
+        y=chart_series["total_usd"],
+        mode="lines",
+        line=dict(color=color_line, width=2),
+        hovertext=chart_series["hover_text"],
+        hovertemplate="%{hovertext}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        height=57,
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis=dict(visible=False, fixedrange=True, showgrid=False),
+        yaxis=dict(visible=False, fixedrange=True, showgrid=False),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        hoverlabel=dict(
+            font=dict(size=11, color="white"),
+            bgcolor="rgba(30,30,30,0.85)",
+            align="left"
+        ),
+        showlegend=False,
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displayModeBar": False,
+            "scrollZoom": False,
+            "doubleClick": False,
+            "editable": False
+        }
+    )
+
+
+def build_monthly_flows_chart(hist_like: pd.DataFrame) -> go.Figure | None:
+    """
+    Expects a history DataFrame already prepared via _prepare_hist_with_snapshot + _prep_history.
+    Falls back to merging with st.session_state['data_df'] if raw historic is passed.
+    """
+    if hist_like is None or hist_like.empty:
+        return None
+
+    # Accept precomputed monthly totals directly, else compute from history
+    if {"Date", "d_usd"}.issubset(hist_like.columns) and "Crypto Asset" not in hist_like.columns:
+        # Caller already passed the 6-row monthly window used for the KPI
+        monthly = (
+            hist_like[["Date", "d_usd"]]
+            .assign(Date=pd.to_datetime(hist_like["Date"]).dt.to_period("M").dt.to_timestamp())
+            .sort_values("Date")
+        )
+    else:
+        df_curr = st.session_state.get("data_df")
+        hist_merge, _ = _prepare_hist_with_snapshot(hist_like, df_curr)
+        hist = _prep_history(hist_merge)
+        decomp = (
+            hist.groupby("Crypto Asset", group_keys=True)
+                .apply(decompose_asset)
+                .reset_index(drop=True)
+        )
+        decomp["Date"] = pd.to_datetime(decomp["Date"]).dt.to_period("M").dt.to_timestamp()
+        monthly = (
+            decomp.groupby("Date")[["d_usd", "price_effect", "units_effect"]]
+                .sum()
+                .reset_index()
+                .sort_values("Date")
+        )
+        # Only in this compute path do we normalize to exactly 6 months
+        last_month = pd.to_datetime(monthly["Date"].max()).to_period("M").to_timestamp()
+        six_idx = pd.date_range(end=last_month, periods=6, freq="MS")
+        monthly = (
+            monthly.set_index("Date")
+                .reindex(six_idx, fill_value=0.0)
+                .rename_axis("Date")
+                .reset_index()
+    )
+
+
+    if monthly.empty:
+        return None
+
+    # draw hairline bars for zeros so no empty slot appears
+    y_raw = monthly["d_usd"].astype(float).values
+    max_abs = np.nanmax(np.abs(y_raw)) if len(y_raw) else 0.0
+    eps = max(1e-9, 0.005 * max_abs)   # 0.5 percent of range, min epsilon
+    y_plot = np.where(y_raw == 0.0, eps, y_raw)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=monthly["Date"],
+        y=y_plot,
+        marker_color=["#43d1a0" if v >= 0 else "#FF4B4B" for v in y_raw],
+        hovertext=[f"{d.strftime('%b %Y')}: <b>{pretty_usd(v)}</b>" for d, v in zip(monthly["Date"], y_raw)],
+        hovertemplate="%{hovertext}<extra></extra>",
+        marker_line_width=0,  # keep clean
+    ))
+
+
+    fig.update_layout(
+        height=91,
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis=dict(visible=False, fixedrange=True, showgrid=False),
+        yaxis=dict(visible=False, fixedrange=True, showgrid=False),
+        bargap=0.25,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        hoverlabel=dict(
+            font=dict(size=11, color="white"),
+            bgcolor="rgba(30,30,30,0.85)",
+            align="left"
+        ),
+        showlegend=False,
+    )
+    return fig
+
+
+def build_top_five_jurisdictions_bar(df_usd: pd.DataFrame) -> go.Figure | None:
+    if df_usd is None or df_usd.empty:
+        return None
+    d = df_usd.copy()
+    d["Country"] = d["Country"].astype(str).str.strip()
+    excl = {"", "Unknown", "Decentralized", "Other", "None", "nan"}
+    d = d[~d["Country"].isin(excl)]
+    if d.empty:
+        return None
+
+    topc = (
+        d.groupby("Country", as_index=False)["USD Value"]
+         .sum()
+         .sort_values("USD Value", ascending=False)
+         .head(5)
+         .iloc[::-1]  # small at top for horizontal ordering
+    )
+    topc["label"] = topc["Country"].map(lambda c: f"{country_emoji_map.get(c, '🏳️')} {c}")
+    topc["label_only"] = topc["Country"].map(lambda c: country_emoji_map.get(c, '🏳️'))
+
+    fig = go.Figure(go.Bar(
+        x=topc["USD Value"],
+        y=topc["label_only"],  # only emojis on axis
+        orientation="h",
+        marker=dict(color="#43d1a0"),
+        text=[pretty_usd(v) for v in topc["USD Value"]],
+        textposition="outside",
+        cliponaxis=False,
+        # use topc["label"] (emoji + name) in hover
+        hovertext=topc["label"],
+        hovertemplate="%{hovertext}<br><b>%{text}</b><extra></extra>",
+    ))
+
+    fig.update_layout(
+        height=164,
+        margin=dict(l=40, r=60, t=0, b=0),
+        xaxis=dict(visible=False, fixedrange=True, showgrid=False),
+        yaxis=dict(
+            visible=True,
+            tickfont=dict(size=20),  # make emoji larger
+            fixedrange=True,
+            showgrid=False
+        ),
+        bargap=0.25,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+    )
+
+    return fig
+
+
+def build_supply_share_bar(df_usd: pd.DataFrame, 
+                           sort_mode: str = "supply") -> go.Figure | None:
+    """
+    Build horizontal bar of treasury holdings as % of circulating supply.
+    sort_mode: "supply" = top 5 by % of supply (default, detailed ranking)
+               "usd"    = top 5 largest assets by USD value first, then ranked by % of supply
+    """
+    if df_usd is None or df_usd.empty:
+        return None
+
+    d = df_usd.copy()
+    d["Holdings (Unit)"] = pd.to_numeric(d["Holdings (Unit)"], errors="coerce")
+    d["USD Value"] = pd.to_numeric(d["USD Value"], errors="coerce").fillna(0.0)
+
+    # --- compute per-asset aggregates ---
+    per_asset_units = (
+        d.groupby("Crypto Asset", as_index=False)["Holdings (Unit)"].sum()
+    )
+    per_asset_units = per_asset_units[per_asset_units["Crypto Asset"].isin(supply_caps.keys())]
+    if per_asset_units.empty:
+        return None
+
+    # --- compute share of circulating supply ---
+    per_asset_units["share"] = per_asset_units.apply(
+        lambda r: (
+            r["Holdings (Unit)"] / float(supply_caps.get(r["Crypto Asset"], np.nan))
+            if float(supply_caps.get(r["Crypto Asset"], np.nan)) > 0 else np.nan
+        ),
+        axis=1
+    ).astype(float)
+
+    # --- selection logic ---
+    if sort_mode == "usd":
+        # Pick top 5 by total USD value first, then sort by share
+        per_asset_usd = (
+            d.groupby("Crypto Asset", as_index=False)["USD Value"].sum()
+        )
+        per_asset_usd = per_asset_usd[per_asset_usd["Crypto Asset"].isin(supply_caps.keys())]
+        top_assets = (
+            per_asset_usd.sort_values("USD Value", ascending=False)
+                         .head(5)["Crypto Asset"].tolist()
+        )
+        per_asset_units = per_asset_units[per_asset_units["Crypto Asset"].isin(top_assets)]
+
+    # Always order final display by share %
+    top5 = (
+        per_asset_units.dropna(subset=["share"])
+                       .sort_values("share", ascending=False)
+                       .head(5)
+                       .iloc[::-1]
+    )
+
+    # --- plot ---
+    fig = go.Figure(go.Bar(
+        x=top5["share"] * 100.0,
+        y=top5["Crypto Asset"],
+        orientation="h",
+        marker=dict(color=[COLORS.get(a, "#7f8c8d") for a in top5["Crypto Asset"]]),
+        text=[f"{v:.1f}%" for v in (top5["share"] * 100.0)],
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="%{y}<br><b>%{x:.1f}%%</b><extra></extra>",
+    ))
+    fig.update_layout(
+        height=164,
+        margin=dict(l=40, r=40, t=0, b=0),
+        xaxis=dict(visible=False, fixedrange=True, showgrid=False),
+        yaxis=dict(visible=True, tickfont=dict(size=11), fixedrange=True, showgrid=False),
+        bargap=0.25,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+    )
+    return fig
 
 
 def render_world_map(df, asset_filter, type_filter, value_range_filter):
@@ -177,7 +560,7 @@ def render_world_map(df, asset_filter, type_filter, value_range_filter):
             projection_scale=1  # optional zoom level
         ),
         uirevision="static-map",  # Prevents user interaction from updating layout
-        margin=dict(l=0, r=0, t=0, b=0),
+        margin=dict(l=20, r=20, t=10, b=10),
         height=600,
         coloraxis_colorbar=dict(title="Total USD"),
         font=dict(size=12),
@@ -248,7 +631,10 @@ def render_rankings(df, asset="BTC", by="units"):
     return fig
 
 
-def historic_chart(df, by="USD"):
+def historic_chart(df_historic: pd.DataFrame, current_df: pd.DataFrame | None = None, by="USD"):
+    hist, selected_assets = _prepare_hist_with_snapshot(df_historic, current_df)
+    df = hist.copy()
+
     # Ensure numeric
     df['USD Value'] = pd.to_numeric(df['USD Value'], errors='coerce')
     if 'Holdings (Unit)' in df.columns:
@@ -339,7 +725,7 @@ def historic_chart(df, by="USD"):
     )
 
     fig.update_layout(
-        margin=dict(t=50, b=20),
+        margin=dict(t=20, b=20, l=50, r=40),
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
         xaxis=dict(fixedrange=True),
@@ -358,8 +744,15 @@ def historic_chart(df, by="USD"):
     return fig
 
 
-def historic_changes_chart(df, by="Units", start=None, end=None):
-    d = df.copy()
+def historic_changes_chart(df_historic: pd.DataFrame,
+                           current_df: pd.DataFrame | None = None,
+                           by="Units",
+                           start=None,
+                           end=None):
+
+    hist, selected_assets = _prepare_hist_with_snapshot(df_historic, current_df)
+    d = hist.copy()
+
     col = "Holdings (Unit)" if by == "Units" else "USD Value"
     d[col] = pd.to_numeric(d[col], errors='coerce')
 
@@ -377,8 +770,18 @@ def historic_changes_chart(df, by="Units", start=None, end=None):
         start = pd.to_datetime(start)
         prev_month = start - pd.offsets.MonthBegin(1)
         monthly = monthly[monthly['Date'] >= prev_month]
-    if end is not None:
-        monthly = monthly[monthly['Date'] <= pd.to_datetime(end)]
+
+    # Always include the merged latest date (so current snapshot shows up)
+    merged_max = monthly['Date'].max()
+
+    if end is None:
+        end_dt = merged_max
+    else:
+        end_dt = max(pd.to_datetime(end), merged_max)  # <-- ensures current month is included
+
+    monthly = monthly[monthly['Date'] <= end_dt]
+
+    # Enforce start again (after end cap) if provided
     if start is not None:
         monthly = monthly[monthly['Date'] >= start]
 
@@ -449,11 +852,13 @@ def historic_changes_chart(df, by="Units", start=None, end=None):
         line=dict(color=default_blue, width=4, dash='dot'),
         name=f"Trend ({window}M avg)",
         customdata=trend['Hover'],
-        hovertemplate="%{customdata}<extra></extra>"
+        hovertemplate="%{customdata}<extra></extra>",
+        visible="legendonly"  # 👈 Hidden by default, toggle via legend
     )
 
+
     fig.update_layout(
-        margin=dict(t=50, b=20),
+        margin=dict(t=20, b=20, l=50, r=40),
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
         xaxis=dict(fixedrange=True),
@@ -577,14 +982,14 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
         fig.add_trace(go.Scatter(
             x=series["Date"], y=series["USD Value"],
             mode="lines",
-            line=dict(width=5, dash="solid", color=default_blue),
+            line=dict(width=5, dash="solid", color="#43d1a0"),
             name="Total",
             hovertext=series["usd_fmt"],
             hovertemplate="<b>%{x|%b %Y}</b><br>Total: <b>%{hovertext}</b><extra></extra>",
         ))
 
     fig.update_layout(
-        margin=dict(t=50, b=0, l=40, r=20),
+        margin=dict(t=20, b=20, l=50, r=40),
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
         xaxis_title=None, yaxis_title=None,
@@ -610,50 +1015,154 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
 
 
 # --- right: Dominance (USD stacked area) ---
-def dominance_area_chart_usd(df_historic: pd.DataFrame, current_df: pd.DataFrame | None = None):
+def dominance_area_chart_usd(df_historic: pd.DataFrame,
+                             current_df: pd.DataFrame | None = None,
+                             pct: bool = False):
+    """
+    pct=False  -> absolute USD stacked area (current behavior)
+    pct=True   -> 100% stacked area (share per asset); y-axis = 0..100%
+    """
     hist, selected_assets = _prepare_hist_with_snapshot(df_historic, current_df)
     fig = go.Figure()
     if hist.empty:
         return fig
 
-    usds = hist.pivot(index="Date", columns="Crypto Asset", values="USD Value").fillna(0.0)
+    usds = (hist
+            .pivot(index="Date", columns="Crypto Asset", values="USD Value")
+            .fillna(0.0))
     usds = usds.reindex(columns=selected_assets)
-    totals_usd = usds.sum(axis=1)
+    totals = usds.sum(axis=1).replace(0, np.nan)
 
-    cum = None
-    for i, a in enumerate([x for x in ASSETS_ORDER if x in selected_assets]):
-        top = usds[a] if cum is None else (cum + usds[a])
-        # Format each point with format_usd
-        hover_vals = usds[a].apply(format_usd)
+    if pct:
+        shares = usds.div(totals, axis=0).fillna(0.0)   # 0..1 fractions
+        cum = None
+        for i, a in enumerate([x for x in ASSETS_ORDER if x in selected_assets]):
+            top = shares[a] if cum is None else (cum + shares[a])
+            usd_fmt = usds[a].apply(format_usd)  # show USD in hover too
+            # customdata[0] = share (fraction)
+            fig.add_trace(go.Scatter(
+                x=shares.index,
+                y=top.values,
+                mode="lines",
+                line=dict(width=0.0, color=COLORS.get(a, "#888")),
+                fill=("tozeroy" if i == 0 else "tonexty"),
+                name=a,
+                hovertext=usd_fmt,
+                customdata=np.column_stack([shares[a].values]),
+                hovertemplate=(
+                    "<b>%{x|%b %Y}</b><br>"
+                    f"{a}: <b>%{{customdata[0]:.1%}}</b><br>"
+                    "USD: <b>%{hovertext}</b>"
+                    "<extra></extra>"
+                ),
+            ))
+            cum = top
 
-        fig.add_trace(go.Scatter(
-            x=usds.index,
-            y=top.values,
-            mode="lines",
-            line=dict(width=0.0, color=COLORS.get(a, "#888")),
-            fill=("tozeroy" if i == 0 else "tonexty"),
-            name=a,
-            hovertext=hover_vals,
-            hovertemplate="<b>%{x|%b %Y}</b><br>" + f"{a}: <b>%{{hovertext}}</b><extra></extra>",
-        ))
-        cum = top
+        fig.update_yaxes(range=[0, 1], tickformat=".0%", fixedrange=True)
+        fig.update_layout(yaxis_title=None)
+
+    else:
+        cum = None
+        for i, a in enumerate([x for x in ASSETS_ORDER if x in selected_assets]):
+            top = usds[a] if cum is None else (cum + usds[a])
+            usd_fmt = usds[a].apply(format_usd)
+            fig.add_trace(go.Scatter(
+                x=usds.index,
+                y=top.values,
+                mode="lines",
+                line=dict(width=0.0, color=COLORS.get(a, "#888")),
+                fill=("tozeroy" if i == 0 else "tonexty"),
+                name=a,
+                hovertext=usd_fmt,
+                hovertemplate="<b>%{x|%b %Y}</b><br>" + f"{a}: <b>%{{hovertext}}</b><extra></extra>",
+            ))
+            cum = top
+
+        fig.update_yaxes(rangemode="tozero", tickprefix="$", fixedrange=True)
 
     fig.update_traces(opacity=0.95)
     fig.update_layout(
-        margin=dict(t=50, b=0, l=40, r=20),
+        margin=dict(t=20, b=20, l=50, r=40),
         legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5),
         hoverlabel=dict(align='left'),
         xaxis_title=None, yaxis_title=None, legend_title_text=None,
     )
-    fig.update_yaxes(rangemode="tozero", tickprefix="$", fixedrange=True)
     fig.update_xaxes(dtick="M1", tickformat="%b %Y", fixedrange=True)
     fig.add_annotation(
         text=WATERMARK_TEXT, x=0.5, y=0.5, xref="paper", yref="paper",
         showarrow=False, font=dict(size=30, color="white"), opacity=0.3,
         xanchor="center", yanchor="middle"
     )
-
     return fig
+
+
+def render_flow_decomposition_chart(view: pd.DataFrame, asset_pick: str | None = None):
+
+    if view.empty or "Date" not in view.columns:
+        st.info("No valid flow data available for chart rendering.")
+        return
+
+    bar_color_price = "#8892a6"
+    bar_color_units = "#43d1a0"
+
+    view["price_hover"] = view["price_effect"].apply(pretty_usd)
+    view["units_hover"] = view["units_effect"].apply(pretty_usd)
+
+    # --- Build bar chart ---
+    fig = go.Figure()
+    fig.add_bar(
+        name="Price effect",
+        x=view["Date"],
+        y=view["price_effect"],
+        marker_color=bar_color_price,
+        hovertext=view["price_hover"],
+        hovertemplate="Date %{x|%b %Y}<br>Price %{hovertext}<extra></extra>",
+    )
+
+    fig.add_bar(
+        name="Units effect",
+        x=view["Date"],
+        y=view["units_effect"],
+        marker_color=bar_color_units,
+        hovertext=view["units_hover"],
+        hovertemplate="Date %{x|%b %Y}<br>Units %{hovertext}<extra></extra>",
+    )
+
+    fig.update_layout(
+        barmode="relative",
+        height=320,
+        margin=dict(t=20, b=20, l=50, r=40),
+        xaxis=dict(title=None, tickformat="%b %Y", fixedrange=True),
+        yaxis=dict(title="ΔUSD", tickprefix="$", fixedrange=True),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
+        ),
+        hoverlabel=dict(align="left"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+
+    # --- Watermark ---
+    fig.add_annotation(
+        text="cryptotreasurytracker.xyz",
+        x=0.5, y=0.9, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=30, color="white"),
+        opacity=0.3,
+        xanchor="center",
+        yanchor="top",
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displayModeBar": False,
+            "scrollZoom": False,
+            "doubleClick": False,
+            "editable": False
+        }
+    )
 
 
 def holdings_by_entity_type_bar(df):
@@ -714,7 +1223,7 @@ def holdings_by_entity_type_bar(df):
     )
 
     fig.update_layout(
-        margin=dict(t=50, b=20),
+        margin=dict(t=20, b=20, l= 50, r= 50),
         legend=dict(
             orientation='h',
             yanchor='bottom',
@@ -742,6 +1251,7 @@ def _empty_pie(msg="No data"):
     fig.update_traces(textinfo="none")
     fig.update_layout(showlegend=False)
     return fig
+
 
 def entity_type_distribution_pie(df: pd.DataFrame, mode: str = "count"):
     required_base = {"Entity Name", "Entity Type"}
@@ -819,10 +1329,10 @@ def entity_type_distribution_pie(df: pd.DataFrame, mode: str = "count"):
     )
 
     fig.update_layout(
-        legend=dict(orientation="h", yanchor="bottom", y=1.15, xanchor="center", x=0.5),
+        legend=dict(orientation="h", yanchor="bottom", y=1.25, xanchor="center", x=0.5),
         hoverlabel=dict(align="left"),
         height=400,
-        margin=dict(t=0, b=10),  # ↓ reduce top and bottom margin
+        margin=dict(t=40, b=20, l= 50, r= 50),
     )
 
     return fig
@@ -906,7 +1416,7 @@ def top_countries_by_entity_count(df):
         x=0.5, y=0.05,                      # Center of chart
         xref="paper", yref="paper",
         showarrow=False,
-        font=dict(size=15, color="white"),
+        font=dict(size=34, color="white"),
         opacity=0.3,                       # Adjust for subtlety
         xanchor="center",
         yanchor="middle",
@@ -920,11 +1430,12 @@ def top_countries_by_entity_count(df):
     )
 
     fig.update_layout(
-        height=400,
-        margin=dict(t=10, b=20),  # ↓ reduce top and bottom margin
+        #height=400,
+        margin=dict(t=40, b=20, l=40, r= 30),
         yaxis=dict(categoryorder='total ascending', title=None, tickfont=dict(size=14), fixedrange=True),
-        xaxis=dict(tickformat=',d', title=None, fixedrange=True),
-        showlegend=False
+        xaxis=dict(title=None, tickprefix = "$", fixedrange=True),
+        legend_title_text=None,
+        legend=dict(orientation="h", yanchor="bottom", y=1.25, xanchor="center", x=0.5),
     )
 
     return fig
@@ -1006,7 +1517,7 @@ def top_countries_by_usd_value(df):
         x=0.5, y=0.05,                      # Center of chart
         xref="paper", yref="paper",
         showarrow=False,
-        font=dict(size=15, color="white"),
+        font=dict(size=34, color="white"),
         opacity=0.3,                       # Adjust for subtlety
         xanchor="center",
         yanchor="middle",
@@ -1020,86 +1531,74 @@ def top_countries_by_usd_value(df):
     )
 
     fig.update_layout(
-        height=400,
-        margin=dict(t=10, b=20),  # ↓ reduce top and bottom margin
-        yaxis=dict(categoryorder='total ascending', title=None, fixedrange=True),
+        #height=400,
+        margin=dict(t=20, b=20, l=40, r= 30),
+        yaxis=dict(categoryorder='total ascending', title=None, tickfont=dict(size=14), fixedrange=True),
         xaxis=dict(title=None, tickprefix = "$", fixedrange=True),
-        showlegend=False,
+        legend_title_text=None,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
     )
 
     return fig
 
 
-def entity_ranking(df, by="USD", top_n=10):
-    value_col = 'USD Value' if by == "USD" else 'Holdings (Unit)'
+def entity_ranking(df, by="USD", top_n: int = 5, show_totals=True):
+    value_col = "USD Value" if by == "USD" else "Holdings (Unit)"
 
-    # Step 1: Aggregate values for plotting
     grouped = (
-        df.groupby(['Entity Name', 'Crypto Asset'])[value_col]
-        .sum()
-        .reset_index()
+        df.groupby(["Entity Name", "Crypto Asset"], as_index=False)[value_col]
+          .sum()
     )
 
-    # Step 2: USD total ranking
     usd_totals = (
-        df.groupby('Entity Name')['USD Value']
-        .sum()
-        .sort_values(ascending=False)
+        df.groupby("Entity Name")["USD Value"]
+          .sum()
+          .sort_values(ascending=False)
     )
 
-    # Limit to top N by USD value
     top_entities = usd_totals.head(top_n).index.tolist()
-    grouped = grouped[grouped['Entity Name'].isin(top_entities)]
+    grouped = grouped[grouped["Entity Name"].isin(top_entities)].copy()
     grouped["USD Total"] = grouped["Entity Name"].map(usd_totals)
 
-    # Step 3: Hover & label formatting
     if by == "USD":
         grouped["Text"] = grouped[value_col].apply(format_usd)
-        hover = grouped.groupby('Entity Name').apply(
-            lambda d: f"<b>{d.name}</b><br>" + "<br>".join(
-                [f"{row['Crypto Asset']}: <b>{format_usd(row[value_col])}</b>" for _, row in d.iterrows()])
-        ).to_dict()
+        hover_map = (
+            grouped.groupby("Entity Name")
+                   .apply(lambda d: f"<b>{d.name}</b><br>" + "<br>".join(
+                       [f"{r['Crypto Asset']}  <b>{format_usd(r[value_col])}</b>" for _, r in d.iterrows()]
+                   ))
+                   .to_dict()
+        )
     else:
         grouped["Text"] = grouped[value_col].apply(lambda x: f"{int(x):,}")
-        hover = grouped.groupby('Entity Name').apply(
-            lambda d: f"<b>{d.name}</b><br>" + "<br>".join(
-                [f"{row['Crypto Asset']}: <b>{int(row[value_col]):,}</b>" for _, row in d.iterrows()])
-        ).to_dict()
+        hover_map = (
+            grouped.groupby("Entity Name")
+                   .apply(lambda d: f"<b>{d.name}</b><br>" + "<br>".join(
+                       [f"{r['Crypto Asset']}  <b>{int(r[value_col]):,}</b>" for _, r in d.iterrows()]
+                   ))
+                   .to_dict()
+        )
+    grouped["Custom Hover"] = grouped["Entity Name"].map(hover_map)
 
-    grouped['Custom Hover'] = grouped['Entity Name'].map(hover)
-
-    # Step 4: Enforce x-axis sort
     sorted_entities = (
-        grouped.groupby('Entity Name')['USD Total']
-        .max()
-        .sort_values(ascending=False)
-        .index.tolist()
+        grouped.groupby("Entity Name")["USD Total"]
+               .max()
+               .sort_values(ascending=False)
+               .index.tolist()
     )
+    grouped["Entity Name"] = pd.Categorical(grouped["Entity Name"], categories=sorted_entities, ordered=True)
+    grouped = grouped.sort_values(["Entity Name", "Crypto Asset"])
 
-    grouped['Entity Name'] = pd.Categorical(grouped['Entity Name'], categories=sorted_entities, ordered=True)
-    grouped = grouped.sort_values(['Entity Name', 'Crypto Asset'])
-
-    # Step 5: Plot
     fig = px.bar(
         grouped,
-        x='Entity Name',
-        y=value_col,
-        color='Crypto Asset',
-        barmode='stack',
-        custom_data=['Custom Hover'],
+        y="Entity Name",
+        x=value_col,
+        color="Crypto Asset",
+        orientation="h",
+        barmode="stack",
+        custom_data=["Custom Hover"],
         color_discrete_map=COLORS,
-        category_orders={'Entity Name': sorted_entities}
-    )
-
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.5,                      # Center of chart
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=30, color="white"),
-        opacity=0.3,                       # Adjust for subtlety
-        xanchor="center",
-        yanchor="middle",
+        category_orders={"Entity Name": sorted_entities},
     )
 
     fig.update_traces(
@@ -1107,26 +1606,411 @@ def entity_ranking(df, by="USD", top_n=10):
         hovertemplate="%{customdata[0]}<extra></extra>"
     )
 
+    if show_totals:
+        totals = (
+            grouped.groupby("Entity Name")[value_col]
+                   .sum()
+                   .reindex(sorted_entities)
+        )
+        if by == "USD":
+            total_text = [format_usd(v) for v in totals.tolist()]
+        else:
+            total_text = [f"{int(v):,}" for v in totals.tolist()]
+
+        fig.add_trace(go.Scatter(
+            x=totals.values,                   # nudge outside the stack
+            y=sorted_entities,
+            mode="text",
+            text=total_text,
+            textposition="middle right",
+            textfont=dict(size=12),
+            hoverinfo="skip",
+            showlegend=False
+        ))
+
+    # watermark
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.5, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=22, color="white"),
+        opacity=0.1,
+        xanchor="center",
+        yanchor="middle",
+    )
+    max_total = float(totals.max() or 0.0)
+
     fig.update_layout(
-        height=500,
-        xaxis=dict(title=None, tickfont=dict(size=12), fixedrange=True),
-        yaxis=dict(title=None if by == "USD" else None,
-                   tickprefix="$" if by == "USD" else "", fixedrange=True
-                   ),
-        margin=dict(l=40, r=40, t=50, b=60),
+        margin=dict(l=40, r=40, t=50, b=40),
+        xaxis=dict(
+            title=None,
+            tickvals=fig.layout.xaxis.tickvals,
+            range=[0, max_total * 1.15],
+            ticktext=[format_usd(v) for v in fig.layout.xaxis.tickvals] if fig.layout.xaxis.tickvals else None,
+            fixedrange=True,
+            showgrid=True,
+        ),
+        yaxis=dict(
+            title=None,
+            categoryorder="array",
+            categoryarray=sorted_entities,
+            autorange="reversed",      # top entity on top
+            fixedrange=True
+        ),
+        bargap=0.25,
+        bargroupgap=0.05,
         font=dict(size=12),
         legend=dict(
-            orientation='h',
-            yanchor='bottom',
-            y=1.1,
-            xanchor='center',
-            x=0.5
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            title=""
         ),
-        legend_title_text='',
-        hoverlabel=dict(align='left')
+        hoverlabel=dict(align="left")
     )
 
+    # pending ribbon when relevant
+    _pending_ctx = st.session_state.get("pending_context", {})
+    if _pending_ctx.get("active"):
+        fig.add_annotation(
+            text="PENDING TREASURIES",
+            x=0.99, y=0.05, xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            bgcolor="white",
+            bordercolor="white", borderwidth=4,
+            xanchor="right", yanchor="bottom", opacity=0.9
+        )
+
     return fig
+
+
+def entity_supply_share_ranking(df_filtered: pd.DataFrame, top_n: int = 5) -> go.Figure:
+
+    d = df_filtered.copy()
+    d["Holdings (Unit)"] = pd.to_numeric(d["Holdings (Unit)"], errors="coerce").fillna(0.0)
+    d = d[d["Holdings (Unit)"] > 0]
+
+    grp = (
+        d.groupby(["Entity Name", "Crypto Asset"], as_index=False)["Holdings (Unit)"]
+         .sum()
+         .rename(columns={"Holdings (Unit)": "units"})
+    )
+
+    grp["supply"] = grp["Crypto Asset"].map(supply_caps).astype(float)
+    grp = grp[np.isfinite(grp["supply"]) & (grp["supply"] > 0)]
+    grp["share"] = grp["units"] / grp["supply"]
+
+    if grp.empty:
+        return go.Figure()
+
+    totals = (
+        grp.groupby("Entity Name")["share"]
+           .sum()
+           .sort_values(ascending=True)
+    )
+    top_entities = totals.tail(int(top_n)).index.tolist()
+
+    grp = grp[grp["Entity Name"].isin(top_entities)].copy()
+    grp["Entity Name"] = pd.Categorical(grp["Entity Name"], categories=top_entities, ordered=True)
+    grp = grp.sort_values(["Entity Name", "Crypto Asset"])
+
+    fig = px.bar(
+        grp,
+        y="Entity Name",
+        x="share",
+        color="Crypto Asset",
+        orientation="h",
+        barmode="stack",
+        color_discrete_map=COLORS,
+        category_orders={"Entity Name": top_entities},
+        custom_data=["Entity Name", "Crypto Asset", "units", "share"]
+    )
+    # watermark
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.5, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=22, color="white"),
+        opacity=0.1,
+        xanchor="center",
+        yanchor="middle",
+    )
+    fig.update_traces(
+        hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}: <b>%{customdata[2]:,.0f}</b> units<br>share <b>%{customdata[3]:.2%}</b><extra></extra>",
+        text=[f"{v:.1%}" for v in grp["share"]],
+        textposition="outside"
+    )
+    tot_share = grp.groupby("Entity Name")["share"].sum()
+    max_share = float(tot_share.max() or 0.0)
+    fig.update_layout(
+        margin=dict(l=40, r=40, t=50, b=40),
+        xaxis=dict(visible=True, tickformat=".0%",range=[0, max_share * 1.15], fixedrange=True, title=None, showgrid=True),
+        yaxis=dict(title=None, fixedrange=True, showgrid=False, autorange="reversed"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=""),
+        hoverlabel=dict(align="left")
+    )
+    return fig
+
+
+def asset_totals_usd_bar(df_filtered: pd.DataFrame, top_n: int = 5) -> go.Figure:
+    d = df_filtered.copy()
+    d["USD Value"] = pd.to_numeric(d["USD Value"], errors="coerce").fillna(0.0)
+    agg = (
+        d.groupby("Crypto Asset", as_index=False)["USD Value"]
+         .sum()
+         .sort_values("USD Value", ascending=True)
+         .tail(top_n)
+    )
+
+    fig = go.Figure(go.Bar(
+        x=agg["USD Value"],
+        y=agg["Crypto Asset"],
+        orientation="h",
+        marker=dict(color=[COLORS.get(a, "#7f8c8d") for a in agg["Crypto Asset"]]),
+        text=[format_usd(v) for v in agg["USD Value"]],
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="%{y}<br><b>%{text}</b><extra></extra>",
+    ))
+
+    fig.update_layout(
+        margin=dict(l=80, r=40, t=50, b=40),
+        xaxis=dict(
+            title=None,
+            tickvals=fig.layout.xaxis.tickvals,
+            ticktext=[format_usd(v) for v in fig.layout.xaxis.tickvals] if fig.layout.xaxis.tickvals else None,
+            fixedrange=True,
+            showgrid=True,
+        ),
+        yaxis=dict(fixedrange=True, showgrid=False, title=None, tickfont=dict(size=11)),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        bargap=0.25,
+        showlegend=False,
+    )
+
+    # watermark
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.5, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=22, color="white"),
+        opacity=0.1,
+        xanchor="center",
+        yanchor="middle",
+    )
+    return fig
+
+
+def asset_totals_supply_share_bar(df_filtered: pd.DataFrame, top_n: int = 5) -> go.Figure:
+    d = df_filtered.copy()
+    d["Holdings (Unit)"] = pd.to_numeric(d["Holdings (Unit)"], errors="coerce").fillna(0.0)
+    agg = (
+        d.groupby("Crypto Asset", as_index=False)["Holdings (Unit)"]
+         .sum()
+         .rename(columns={"Holdings (Unit)": "units"})
+    )
+
+    _supply = pd.Series(supply_caps)
+    agg["supply"] = agg["Crypto Asset"].map(_supply)
+    agg["supply"] = pd.to_numeric(agg["supply"], errors="coerce")
+    agg = agg[agg["supply"].gt(0) & agg["units"].ge(0)]
+    agg["share"] = agg["units"] / agg["supply"]
+
+    agg = agg.sort_values("share", ascending=True).tail(top_n)
+
+    fig = go.Figure(go.Bar(
+        x=agg["share"],
+        y=agg["Crypto Asset"],
+        orientation="h",
+        marker=dict(color=[COLORS.get(a, "#7f8c8d") for a in agg["Crypto Asset"]]),
+        text=[f"{v:.1%}" for v in agg["share"]],
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="%{y}<br><b>%{text}</b><extra></extra>",
+    ))
+
+    fig.update_layout(
+        margin=dict(l=80, r=40, t=50, b=40),
+        xaxis=dict(fixedrange=True, tickformat=".0%", showgrid=True),
+        yaxis=dict(fixedrange=True, showgrid=False, tickfont=dict(size=11)),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        bargap=0.25,
+        showlegend=False,
+    )
+    fig.update_traces(
+        hovertemplate="%{y}<br><b>%{text}</b><extra></extra>",
+        text=[f"{v:.1%}" for v in agg["share"]],
+        textposition="outside",
+        cliponaxis=False
+    )
+    # watermark
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.5, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=22, color="white"),
+        opacity=0.1,
+        xanchor="center",
+        yanchor="middle",
+    )
+    return fig
+
+def diversification_bar(df_filtered):
+
+    df = df_filtered.copy()
+    counts = (
+        df.groupby("Entity Name")["Crypto Asset"]
+          .nunique()
+          .reset_index(name="Asset Count")
+          .sort_values("Asset Count", ascending=True)
+    )
+    counts = counts.tail(10)
+    fig = px.bar(
+        counts,
+        y="Entity Name",
+        x="Asset Count",
+        orientation="h",
+        text="Asset Count",
+        #height=520,
+        color="Asset Count",
+        color_continuous_scale="Viridis",
+    )
+    fig.update_layout(
+        title="",
+        xaxis_title="Number of Assets Held",
+        yaxis_title="",
+        margin=dict(l=50, r=40, t=20, b=20),
+        coloraxis_showscale=False,
+        yaxis=dict(fixedrange=True),
+        xaxis=dict(fixedrange=True),
+    )
+    fig.update_traces(textposition="outside")
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.05, xref="paper", yref="paper",
+        showarrow=False, font=dict(size=20, color="white"), opacity=0.25,
+        xanchor="center", yanchor="middle",
+    )
+    return fig
+
+
+def target_progress(df_filtered):
+
+    df = df_filtered.copy()
+    #df = df[df["DAT"] == 1]
+    for c in ["USD Value", "target_usd"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+    df = df[df["target_usd"] > 0]
+    df["Progress %"] = (df["USD Value"] / df["target_usd"]) * 100
+    df["Progress %"] = df["Progress %"].clip(0, 200)
+
+    prog = (
+        df.groupby("Entity Name", as_index=False)
+          .agg(progress=("Progress %", "mean"),
+               status=("status", lambda x: x.mode().iat[0] if len(x) else ""))
+          .sort_values("progress", ascending=True)
+          .tail(20)
+    )
+
+    fig = px.bar(
+        prog,
+        y="Entity Name",
+        x="progress",
+        color="status",
+        orientation="h",
+        text=prog["progress"].map(lambda x: f"{x:.0f}%"),
+        color_discrete_sequence=px.colors.qualitative.Plotly,
+        #height=520,
+    )
+    fig.update_layout(
+        title="",
+        xaxis_title="Progress (%)",
+        yaxis_title="",
+        margin=dict(l=50, r=40, t=20, b=20),
+        yaxis=dict(fixedrange=True),
+        xaxis=dict(fixedrange=True),
+        showlegend=False
+    )
+    fig.update_traces(textposition="outside")
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.05, xref="paper", yref="paper",
+        showarrow=False, font=dict(size=20, color="white"), opacity=0.25,
+        xanchor="center", yanchor="middle",
+    )
+    return fig
+
+
+def premium_vs_size(df_filtered):
+
+    df = df_filtered.copy()
+    df = df[df["DAT"] == 1]  # DAT Wrappers only
+    for c in ["Premium", "USD Value"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=["Premium", "USD Value"])
+    df = df[df["USD Value"] > 0]
+    if df.empty:
+        return px.scatter(title="No DAT Wrapper data for Premium-vs-Size map")
+
+    df["log_usd"] = np.log10(df["USD Value"])
+    df["Hover"] = (
+        "<b>" + df["Entity Name"] + "</b><br>"
+        "Asset " + df["Crypto Asset"] + "<br>"
+        "Premium " + df["Premium"].map("{:.1f}%".format) + "<br>"
+        "USD Value " + df["USD Value"].map(lambda v: f"${v/1e6:.1f} M")
+    )
+
+    y_range = [-200, 1600]
+    size_min, size_max = 10, 100
+    s_scaled = np.interp(
+        np.log10(df["USD Value"]),
+        (df["log_usd"].min(), df["log_usd"].max()),
+        (size_min, size_max),
+    )
+
+    fig = px.scatter(
+        df,
+        x="log_usd",
+        y="Premium",
+        color="Crypto Asset",
+        size=s_scaled,
+        color_discrete_map=COLORS,
+        custom_data=["Hover"],
+        opacity=0.9,
+        height=520,
+    )
+    fig.update_traces(hovertemplate="%{customdata[0]}<extra></extra>")
+
+    fig.update_layout(
+        title="",
+        xaxis_title="log₁₀ (USD Value)",
+        yaxis_title="Premium (%)",
+        yaxis_range=y_range,
+        yaxis=dict(fixedrange=True),
+        xaxis=dict(fixedrange=True),
+        margin=dict(l=60, r=40, t=60, b=60),
+        legend=dict(orientation="h", y=1.15, x=0.5, xanchor="center"),
+        hoverlabel=dict(align="left")
+    )
+    fig.update_xaxes(
+        tickvals=[4,5,6,7,8,9,10,11],
+        ticktext=["10k","100k","1M","10M","100M","1B","10B","100B"]
+    )
+    fig.add_annotation(
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.45, xref="paper", yref="paper",
+        showarrow=False, font=dict(size=35, color="white"), opacity=0.30,
+        xanchor="center", yanchor="middle",
+    )
+    return fig
+
 
 
 def _clip_name(s: str, n: int = 20) -> str:
@@ -1335,7 +2219,7 @@ def lorenz_curve_chart(p, L, asset: str | None = None):
     ))
     fig.update_layout(
         height=350,
-        margin=dict(l=40, r=20, t=10, b=30),
+        margin=dict(l=50, r=50, t=20, b=20),
         xaxis=dict(title="Cumulative share of groups", tickformat=".0%", range=[0,1], fixedrange=True),
         yaxis=dict(title="Cumulative share of weight", tickformat=".0%", range=[0,1], fixedrange=True),
         showlegend=False,
@@ -1414,8 +2298,8 @@ def exposure_ladder_bar(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
     ))
     fig.update_layout(
         height=max(400, 25 * len(snap) + 40),
-        margin=dict(l=100, r=20, t=60, b=0),
-        xaxis=dict(title="Crypto Treasury as % of Market Cap", ticksuffix="%", fixedrange=True),
+        margin=dict(l=50, r=20, t=20, b=20),
+        xaxis=dict(title="Crypto Treasury as % of Market Cap", ticksuffix="%", fixedrange=True, showgrid=True),
         yaxis=dict(title=None, fixedrange=True),
         showlegend=False,
         hoverlabel=dict(align="left"),
@@ -1478,8 +2362,8 @@ def mcap_decomposition_bar(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
     fig.update_layout(
         barmode="stack",
         height=max(400, 25 * len(snap) + 40),
-        margin=dict(l=100, r=20, t=60, b=0),
-        xaxis=dict(title="Market Cap (stacked)", fixedrange=True),
+        margin=dict(l=50, r=20, t=20, b=20),
+        xaxis=dict(title="Market Cap (stacked)", fixedrange=True, showgrid=True),
         yaxis=dict(title=None, fixedrange=True),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
         hoverlabel=dict(align="left"),
@@ -1499,9 +2383,6 @@ def mcap_decomposition_bar(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
     return fig
 
 
-NEUTRAL_POS = "#43d1a0"
-NEUTRAL_NEG = "#f94144"
-
 def _entity_snapshot_by_asset(df: pd.DataFrame) -> pd.DataFrame:
     """
     Per-entity, per-asset snapshot:
@@ -1519,10 +2400,7 @@ def _entity_snapshot_by_asset(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | None = None) -> go.Figure:
-    """
-    Pick Top-N by CryptoNAV (largest treasuries), then DISPLAY sorted by mNAV (desc)
-    with a 1× guideline. Optional mNAV cap to drop outliers.
-    """
+
     snap = _entity_snapshot(df).dropna(subset=["MarketCap"])
     snap = snap[snap["MarketCap"] > 0].copy()
 
@@ -1562,7 +2440,7 @@ def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | Non
 
     fig.update_layout(
         height=500,
-        margin=dict(l=0, r=20, t=20, b=0),
+        margin=dict(l=50, r=30, t=20, b=20),
         xaxis=dict(title=None, tickangle=45, automargin=True, fixedrange=True),
         yaxis=dict(title="mNAV (×)", range=y_range, fixedrange=True),
         showlegend=False,
@@ -1640,8 +2518,8 @@ def corporate_sensitivity_bar(
     ))
     fig.update_layout(
         height=max(420, 24 * len(d) + 60),
-        margin=dict(l=120, r=50, t=20, b=10),
-        xaxis=dict(title="Implied Equity Move (%)", ticksuffix="%", zeroline=True, fixedrange=True),
+        margin=dict(l=50, r=50, t=20, b=20),
+        xaxis=dict(title="Implied Equity Move (%)", ticksuffix="%", zeroline=True, fixedrange=True, showgrid=True),
         yaxis=dict(title=None, fixedrange=True),
         showlegend=False,
         hoverlabel=dict(align="left"),

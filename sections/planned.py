@@ -30,7 +30,7 @@ def _df_auto_height(n_rows: int, row_px: int = 35) -> int:
     return int((n_rows + 1) * row_px + 3)
 
 def render_planned():
-    st.title("Crypto Treasury Pipeline")
+    #st.title("Crypto Treasury Pipeline")
 
     df = st.session_state.get("planned_df")
     if df is None or df.empty:
