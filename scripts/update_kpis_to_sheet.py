@@ -119,47 +119,38 @@ def read_latest_prices(ss) -> dict:
     return {str(k).upper(): float(str(v).replace(",", ".")) for k, v in latest.items()}
 
 def load_holdings_aggregated(ss) -> pd.DataFrame:
-    dfs = []
-    for a in ASSETS:
-        try:
-            ws = ss.worksheet(f"aggregated_{a.lower()}_data")
-        except gspread.WorksheetNotFound:
-            continue
-        values = ws.get_all_values()
-        if not values or len(values) < 2:
-            continue
-        header, data = values[0], values[1:]
-        df_a = pd.DataFrame(data, columns=header)
-        # Ensure required columns exist
-        for col in ["Entity Name","Crypto Asset","Holdings (Unit)"]:
-            if col not in df_a.columns:
-                df_a[col] = ""
-        # Standardize asset column in case it's missing/blank
-        df_a["Crypto Asset"] = df_a["Crypto Asset"].replace("", a)
-        dfs.append(df_a)
-
-    if not dfs:
+    try:
+        ws = ss.worksheet("aggregated_data")
+    except gspread.WorksheetNotFound:
         return pd.DataFrame(columns=["Entity Name","Crypto Asset","Holdings (Unit)"])
 
-    df = pd.concat(dfs, ignore_index=True)
+    values = ws.get_all_values()
+    if not values or len(values) < 2:
+        return pd.DataFrame(columns=["Entity Name","Crypto Asset","Holdings (Unit)"])
 
+    header, data = values[0], values[1:]
+    df = pd.DataFrame(data, columns=header)
+
+    # ensure required columns
+    for col in ["Entity Name","Crypto Asset","Holdings (Unit)"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    # normalize and parse numeric units
+    df["Crypto Asset"] = df["Crypto Asset"].astype(str).str.upper().str.strip()
     df["Holdings (Unit)"] = (
-        df["Holdings (Unit)"]
-        .astype(str)
+        df["Holdings (Unit)"].astype(str)
         .map(parse_units_like_app)
         .fillna(0.0)
     )
 
-    # Keep only valid/positive
     df = df[df["Holdings (Unit)"] > 0]
-
-    # De-duplicate by (entity, asset) just in case
     df = (
         df.groupby(["Entity Name","Crypto Asset"], as_index=False)["Holdings (Unit)"]
           .sum()
     )
-
     return df
+
 
 # ---- Upsert snapshot (one row per UTC date) ----
 def upsert_snapshot(ss, total_usd: float, total_entities: int):

@@ -1740,9 +1740,15 @@ def entity_supply_share_ranking(df_filtered: pd.DataFrame, top_n: int = 5) -> go
     )
     fig.update_traces(
         hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}: <b>%{customdata[2]:,.0f}</b> units<br>share <b>%{customdata[3]:.2%}</b><extra></extra>",
-        text=[f"{v:.1%}" for v in grp["share"]],
-        textposition="outside"
+        selector=dict(type="bar")
     )
+
+    # assign the correct text per trace
+    for tr in fig.data:
+        mask = (grp["Crypto Asset"] == tr.name)
+        tr.text = [f"{v:.2%}" for v in grp.loc[mask, "share"]]
+        tr.textposition = "outside"
+
     tot_share = grp.groupby("Entity Name")["share"].sum()
     max_share = float(tot_share.max() or 0.0)
     fig.update_layout(
@@ -1846,7 +1852,7 @@ def asset_totals_supply_share_bar(df_filtered: pd.DataFrame, top_n: int = 5) -> 
     )
     fig.update_traces(
         hovertemplate="%{y}<br><b>%{text}</b><extra></extra>",
-        text=[f"{v:.1%}" for v in agg["share"]],
+        text=[f"{v:.2%}" for v in agg["share"]],
         textposition="outside",
         cliponaxis=False
     )
