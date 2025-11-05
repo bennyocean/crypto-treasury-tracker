@@ -34,13 +34,16 @@ if "initialized" not in st.session_state:
 
     # compute USD values
     # st.session_state["data_df"] = attach_usd_values(units_df, st.session_state["prices"])
-    st.session_state["data_df"] = attach_usd_values(units_df, use_default_prices=False)
-
+    st.session_state["data_df"] = attach_usd_values(
+        units_df,
+        prices_input=st.session_state["prices"],
+        use_default_prices=False
+    )
     # normalize DAT to int 0/1 BEFORE filters
     df0 = st.session_state["data_df"].copy()
     df0["DAT"] = pd.to_numeric(df0.get("DAT", 0), errors="coerce").fillna(0).astype(int)
     st.session_state["data_df"] = df0
-
+    
     # initialize global filter option lists
     _init_global_filters(st.session_state["data_df"])
     print(st.session_state["data_df"].head(10))

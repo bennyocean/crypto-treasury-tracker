@@ -166,11 +166,9 @@ def save_last_prices(prices: dict, filename=None):
         json.dump(out, f)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def read_central_prices_from_sheet() -> tuple[dict | None, pd.Timestamp | None]:
-    """
-    Returns a tuple  prices dict  latest timestamp as tz aware UTC pandas Timestamp
-    """
+    """Read live prices from Google Sheet; robust against comma/float timestamps."""
     try:
         import gspread
         from google.oauth2.service_account import Credentials
@@ -181,29 +179,43 @@ def read_central_prices_from_sheet() -> tuple[dict | None, pd.Timestamp | None]:
         rows = ws.get_all_records(value_render_option="UNFORMATTED_VALUE")
         if not rows:
             return None, None
+
         df = pd.DataFrame(rows)
-        if df.empty or "asset" not in df or "usd" not in df or "timestamp" not in df:
+        if df.empty or not {"asset","usd","timestamp"}.issubset(df.columns):
             return None, None
 
-        # cast timestamp column to int, interpret as epoch seconds
-        df["ts"] = pd.to_datetime(df["timestamp"].astype(int), unit="s", utc=True)
+        # --- Robust parsing ---
+        df["asset"] = df["asset"].astype(str).str.upper().str.strip()
+        df["usd"] = (
+            df["usd"].astype(str)
+            .str.replace(",", ".", regex=False)
+            .astype(float)
+        )
+        # allow float / string timestamps
+        df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce").fillna(0).astype(int)
+        df["ts"] = pd.to_datetime(df["timestamp"], unit="s", utc=True)
 
-        df = df.sort_values("ts")
-        latest_prices = df.groupby("asset")["usd"].last().to_dict()
+        latest = (
+            df.sort_values("ts")
+              .groupby("asset", as_index=False)["usd"].last()
+        )
+        price_map = dict(zip(latest["asset"], latest["usd"]))
         last_ts = df["ts"].max()
-
-        return ({k.upper(): float(str(v).replace(",", ".")) for k, v in latest_prices.items()},
-                last_ts)
-    except Exception:
+        return price_map, last_ts
+    except Exception as e:
+        print("❌ read_central_prices_from_sheet error:", e)
         return None, None
+
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_prices():
     # 1) central sheet
-    price_map, _ts = read_central_prices_from_sheet()  # (dict|None, ts|None)
-    if isinstance(price_map, dict) and all(a in price_map for a in ASSETS):
-        return tuple(float(price_map[a]) for a in ASSETS)
+    time.sleep(0.2) 
+    price_map, _ts = read_central_prices_from_sheet()
+    if isinstance(price_map, dict) and len(price_map) > 0:
+        merged = {a: float(price_map.get(a, DEFAULT_PRICES[a])) for a in ASSETS}
+        return tuple(merged[a] for a in ASSETS)
 
     # 2) CoinGecko API then persist to local
     try:
@@ -223,6 +235,8 @@ def get_prices():
 
     # 3) local fallback
     last = load_last_prices()
+    print("Loaded price sample:", list(price_map.items())[:5])
+
     return tuple(float(last.get(a, 0.0)) for a in ASSETS)
 
 
