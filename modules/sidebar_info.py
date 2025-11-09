@@ -2,27 +2,53 @@ import streamlit as st
 import base64, mimetypes
 import time
 
-from sections import overview, global_, historic, ranking, treasury_breakdown, about, concentration, valuation, planned
-from modules.ui import render_header, render_subscribe_cta, render_support, show_global_loader
+from sections import overview, global_, historic, ranking, treasury_breakdown, about, concentration, valuation, news
+from modules.ui import render_header, render_subscribe_cta, render_support, show_global_loader, f5_logo_64
 from analytics import log_page_once
 
+# F5Crypto url
+f5_url = "https://f5crypto.com/en/"
 
 def render_sidebar():
 
+    st.markdown("""
+    <style>
+    img {
+        border-radius: 0% !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.sidebar.image("assets/ctt-logo.svg", width=250)
-    st.sidebar.markdown("_The most comprehensive Digital Asset Treasury Terminal!_")
+    #st.sidebar.markdown("_The most comprehensive Digital Asset Treasury Terminal!_")
+
+    st.sidebar.markdown(
+        f"""
+        <div style="text-align:center; margin-top:-6px;">
+            <p style="margin-bottom:8px; font-size:13px; color:white;">powered by</p>
+            <a href="{f5_url}" target="_blank">
+                <img src="data:image/jpeg;base64,{f5_logo_64}" 
+                    width="150" style="border-radius:0%;">
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    #st.sidebar.divider()
+
 
     # global top header on every page
     #render_header()
 
-    # Crypto Reserve Report Link
     render_subscribe_cta()
+    #st.sidebar.divider()
 
     # section switcher
     section = st.sidebar.radio("Explore The Tracker", 
                                [
                                     "Dashboard",
-                                    #"Treasury Pipeline",
+                                    "DAT News Feed",
                                     "Market Cap & Flows",
                                     "Treasury Ranking",
                                     "Regional Analysis",
@@ -65,7 +91,7 @@ def render_sidebar():
         """
         <style>
             .block-container {
-                padding-top: 2.8rem !important;
+                padding-top: 0rem !important;
             }
         </style>
         """,
@@ -112,7 +138,7 @@ def render_sidebar():
     st.sidebar.markdown("---")
     st.sidebar.markdown(
         "<p style='font-size: 0.75rem; color: gray;'>"
-        "v2.0 • © 2025 Crypto Treasury Tracker"
+        "v2.1 • © 2025 Crypto Treasury Tracker"
         "</p>", unsafe_allow_html=True
     )
 
@@ -142,9 +168,9 @@ def render_sidebar():
         log_page_once("overview")
         overview.render_overview()
 
-    """    if section == "Treasury Pipeline":
-            log_page_once("planned")
-            planned.render_planned()"""
+    if section == "DAT News Feed":
+        log_page_once("news")
+        news.render_news()
 
     if section == "Regional Analysis":
         log_page_once("world_map")

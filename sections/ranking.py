@@ -1,11 +1,13 @@
 import streamlit as st
 from modules.filters import apply_filters
 from modules import charts
-from modules.ui import render_plotly
+from modules.ui import render_plotly, render_ticker
 
 
 def render_entity_ranking():
     #st.title("Crypto Treasury Ranking")
+
+    render_ticker()
 
     df = st.session_state["data_df"]
     df_filtered = apply_filters(df)

@@ -1,12 +1,14 @@
 import streamlit as st
 from modules.filters import apply_filters
 from modules import charts
-from modules.ui import render_plotly
+from modules.ui import render_plotly, render_ticker
 
 def render_treasury_breakdown():
     #st.markdown("#### Treasury Breakdown & Distribution")
     #st.title("Treasury Breakdown & Distribution")
     
+    render_ticker()
+
     df = st.session_state["data_df"]
     df_filtered = apply_filters(df)
     print("number of countries:", df_filtered["Country"].nunique())

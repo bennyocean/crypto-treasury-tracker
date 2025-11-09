@@ -1,5 +1,5 @@
 import streamlit as st
-from modules.ui import render_plotly
+from modules.ui import render_plotly, render_ticker
 from analytics import log_filter_if_changed
 from modules.filters import apply_filters
 from modules import charts
@@ -7,6 +7,8 @@ from modules import charts
 
 def render_global():
     #st.title("Global Crypto Treasury Map")
+    
+    render_ticker()
 
     df = st.session_state["data_df"]
 

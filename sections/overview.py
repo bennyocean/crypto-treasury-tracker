@@ -9,7 +9,7 @@ from urllib.parse import urlencode, quote_plus
 
 from modules.kpi_helpers import render_kpis
 from analytics import log_table_render
-from modules.ui import btc_b64, eth_b64, sol_b64, sui_b64, ltc_b64, xrp_b64, hype_b64, bnb_b64, doge_b64, ada_b64, avax_b64, ath_b64, bera_b64, bonk_b64, link_b64, core_b64, cro_b64, trump_b64, pump_b64, ton_b64, trx_b64, wlfi_b64, zig_b64, vaulta_b64,fluid_b64
+from modules.ui import render_ticker, btc_b64, eth_b64, sol_b64, sui_b64, ltc_b64, xrp_b64, hype_b64, bnb_b64, doge_b64, ada_b64, avax_b64, ath_b64, bera_b64, bonk_b64, link_b64, core_b64, cro_b64, trump_b64, pump_b64, ton_b64, trx_b64, wlfi_b64, zig_b64, vaulta_b64,fluid_b64
 from modules.pdf_helper import _table_pdf_bytes
 from modules.emojis import country_emoji_map
 from modules.data_loader import read_central_prices_from_sheet, get_events_for_entity_id_asset
@@ -140,6 +140,7 @@ def _badge_svg_uri(text: str,
     return f"data:image/svg+xml;base64,{b64}"
 
 
+
 st.session_state.setdefault("active_dialog", None)
 
 def render_overview():
@@ -147,7 +148,8 @@ def render_overview():
     #st.title("Crypto Treasury Dashboard")
 
     #st.markdown("")
-
+    render_ticker()
+    
     df = st.session_state["data_df"]
 
     # KPIs

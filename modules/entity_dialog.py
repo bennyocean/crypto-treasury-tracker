@@ -9,6 +9,29 @@ from modules.ui import COLORS, render_plotly
 
 WATERMARK_TEXT="cryptotreasurytracker.xyz"
 
+def add_watermark(fig, main_text=WATERMARK_TEXT):
+    # Main domain watermark
+    fig.add_annotation(
+        text=main_text,
+        x=0.5, y=0.45, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=20, color="white"),
+        opacity=0.7,
+        xanchor="center",
+        yanchor="middle",
+    )
+    # Powered-by footer
+    fig.add_annotation(
+        text="powered by <b>F5Crypto.com</b>",
+        x=1, y=0,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=12, color="black"),
+        bgcolor="white",
+        bordercolor="white", borderwidth=4,
+        xanchor="right", yanchor="bottom", opacity=0.7
+    )
+    return fig
 
 def show_entity_dialog(
     *,
@@ -676,16 +699,8 @@ def show_entity_dialog(
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
             )
 
-            fig.add_annotation(
-                text=WATERMARK_TEXT,
-                x=0.5, y=0.5,                      # Center of chart
-                xref="paper", yref="paper",
-                showarrow=False,
-                font=dict(size=30, color="white"),
-                opacity=0.2,                       # Adjust for subtlety
-                xanchor="center",
-                yanchor="middle",
-            )
+            add_watermark(fig)
+            
             render_plotly(fig, filename=f"{name}_{asset}_holdings", extra_config={"scrollZoom": False})
         else:
             st.info("Chart coming soon")

@@ -4,9 +4,12 @@ import pandas as pd
 from modules.filters import apply_filters_historic
 from modules.charts import historic_chart, cumulative_market_cap_chart, dominance_area_chart_usd, historic_changes_chart
 from modules.kpi_helpers import render_historic_kpis, render_flow_decomposition
-from modules.ui import render_plotly
+from modules.ui import render_plotly, render_ticker
 
 def cumulative_viewer(df_display, current_df):
+    
+    render_ticker()
+
     st.markdown(
         "#### Cumulative Market Overview",
         help=(

@@ -8,6 +8,7 @@ from modules.filters import apply_filters
 from modules.kpi_helpers import render_plotly
 from modules.charts import lorenz_curve_chart
 from modules.emojis import country_emoji_map
+from modules.ui import render_ticker
 
 # ---------- concentration metrics ----------
 def _top_share(s: pd.Series, n: int = 10) -> float:
@@ -54,7 +55,8 @@ def _lorenz_points(s: pd.Series):
 
 def render_concentration():
     #st.title("Crypto Treasury Concentration")
-
+    render_ticker()
+    
     base_df = st.session_state["data_df"]
     df_view = apply_filters(base_df)
     

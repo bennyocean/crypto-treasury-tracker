@@ -84,6 +84,30 @@ NEUTRAL_NEG = "#f94144"
 
 WATERMARK_TEXT="cryptotreasurytracker.xyz"
 
+def add_watermark(fig, main_text=WATERMARK_TEXT):
+    # Main domain watermark
+    fig.add_annotation(
+        text=main_text,
+        x=0.5, y=0.45, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=20, color="white"),
+        opacity=0.7,
+        xanchor="center",
+        yanchor="middle",
+    )
+    # Powered-by footer
+    fig.add_annotation(
+        text="<i>powered by <b>F5Crypto.com</b></i>",
+        x=1, y=0,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=12, color="white"),
+        #bgcolor="white",
+        #bordercolor="white", borderwidth=4,
+        xanchor="right", yanchor="bottom", opacity=0.7
+    )
+    return fig
+
 def format_usd(value):
     sign = "-" if value < 0 else ""
     abs_val = abs(value)
@@ -542,13 +566,23 @@ def render_world_map(df, asset_filter, type_filter, value_range_filter):
 
     fig.add_annotation(
         text=WATERMARK_TEXT,
-        x=0.5, y=0.5,                      # Center of chart
-        xref="paper", yref="paper",
+        x=0.5, y=0.45, xref="paper", yref="paper",
         showarrow=False,
         font=dict(size=30, color="black"),
-        opacity=0.3,
+        opacity=0.7,
         xanchor="center",
         yanchor="middle",
+    )
+    # Powered-by footer
+    fig.add_annotation(
+        text="powered by <b>F5Crypto.com</b>",
+        x=0.98, y=0.02,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=12, color="black"),
+        bgcolor="white",
+        bordercolor="white", borderwidth=4,
+        xanchor="right", yanchor="bottom", opacity=0.7
     )
 
     fig.update_layout(
@@ -608,16 +642,8 @@ def render_rankings(df, asset="BTC", by="units"):
         hovertemplate="%{customdata}<extra></extra>"
     ))
 
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.95, y=0.05,
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=15, color="white"),
-        opacity=0.3,
-        xanchor="right",
-        yanchor="middle",
-    )
+    add_watermark(fig)
+
 
     fig.update_layout(
         title_text="",
@@ -713,16 +739,8 @@ def historic_chart(df_historic: pd.DataFrame, current_df: pd.DataFrame | None = 
             )
 
     # Watermark
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.95,
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=30, color="white"),
-        opacity=0.3,
-        xanchor="center",
-        yanchor="top",
-    )
+    add_watermark(fig)
+
 
     fig.update_layout(
         margin=dict(t=20, b=20, l=50, r=40),
@@ -872,13 +890,8 @@ def historic_changes_chart(df_historic: pd.DataFrame,
     )
     fig.update_xaxes(dtick="M1", tickformat="%b %Y")
 
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.95, xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=30, color="white"), opacity=0.3,
-        xanchor="center", yanchor="top",
-    )
+    add_watermark(fig)
+
 
     return fig
 
@@ -1006,11 +1019,8 @@ def cumulative_market_cap_chart(df_historic: pd.DataFrame, current_df: pd.DataFr
     )
     fig.update_xaxes(dtick="M1", tickformat="%b %Y")
 
-    fig.add_annotation(
-        text=WATERMARK_TEXT, x=0.5, y=0.5, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=30, color="white"), opacity=0.3,
-        xanchor="center", yanchor="middle"
-    )
+    add_watermark(fig)
+
     return fig
 
 
@@ -1088,11 +1098,8 @@ def dominance_area_chart_usd(df_historic: pd.DataFrame,
         xaxis_title=None, yaxis_title=None, legend_title_text=None,
     )
     fig.update_xaxes(dtick="M1", tickformat="%b %Y", fixedrange=True)
-    fig.add_annotation(
-        text=WATERMARK_TEXT, x=0.5, y=0.5, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=30, color="white"), opacity=0.3,
-        xanchor="center", yanchor="middle"
-    )
+    add_watermark(fig)
+
     return fig
 
 
@@ -1143,15 +1150,8 @@ def render_flow_decomposition_chart(view: pd.DataFrame, asset_pick: str | None =
     )
 
     # --- Watermark ---
-    fig.add_annotation(
-        text="cryptotreasurytracker.xyz",
-        x=0.5, y=0.9, xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=30, color="white"),
-        opacity=0.3,
-        xanchor="center",
-        yanchor="top",
-    )
+    add_watermark(fig)
+
 
     st.plotly_chart(
         fig,
@@ -1200,16 +1200,8 @@ def holdings_by_entity_type_bar(df):
         category_orders={'Entity Type': sorted_types}  # ✅ This line is key
     )
 
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.95,                      # Center of chart
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=15, color="white"),
-        opacity=0.3,                       # Adjust for subtlety
-        xanchor="center",
-        yanchor="top",
-    )
+    add_watermark(fig)
+
 
     fig.update_traces(
         hovertemplate="%{customdata[0]}<extra></extra>"
@@ -1317,16 +1309,26 @@ def entity_type_distribution_pie(df: pd.DataFrame, mode: str = "count"):
         customdata=customdata
     )
 
+    # Main domain watermark
     fig.add_annotation(
         text=WATERMARK_TEXT,
-        x=0.5, y=0.5,
-        xref="paper", yref="paper",
+        x=0.5, y=0.5, xref="paper", yref="paper",
         showarrow=False,
-        font=dict(size=15, color="white"),
-        opacity=0.3,
+        font=dict(size=13, color="white"),
+        opacity=0.7,
         xanchor="center",
         yanchor="middle",
     )
+    # Powered-by footer
+    fig.add_annotation(
+        text="powered by <b>F5Crypto.com</b>",
+        x=1, y=0,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=12, color="white"),
+        #bgcolor="white",
+        #bordercolor="white", borderwidth=4,
+        xanchor="right", yanchor="bottom", opacity=0.7)
 
     fig.update_layout(
         legend=dict(orientation="h", yanchor="bottom", y=1.25, xanchor="center", x=0.5),
@@ -1411,16 +1413,8 @@ def top_countries_by_entity_count(df):
             yanchor='middle'
         )
 
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.05,                      # Center of chart
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=34, color="white"),
-        opacity=0.3,                       # Adjust for subtlety
-        xanchor="center",
-        yanchor="middle",
-    )
+    add_watermark(fig)
+
 
     # Step 6: Final layout adjustments
     fig.update_traces(
@@ -1512,16 +1506,8 @@ def top_countries_by_usd_value(df):
             yanchor='middle'
         )
 
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.05,                      # Center of chart
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=34, color="white"),
-        opacity=0.3,                       # Adjust for subtlety
-        xanchor="center",
-        yanchor="middle",
-    )
+    add_watermark(fig)
+
 
     # Step 6: Final layout adjustments
     fig.update_traces(
@@ -1629,15 +1615,8 @@ def entity_ranking(df, by="USD", top_n: int = 5, show_totals=True):
         ))
 
     # watermark
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.5, xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=22, color="white"),
-        opacity=0.1,
-        xanchor="center",
-        yanchor="middle",
-    )
+    add_watermark(fig)
+
     max_total = float(totals.max() or 0.0)
 
     fig.update_layout(
@@ -1729,15 +1708,8 @@ def entity_supply_share_ranking(df_filtered: pd.DataFrame, top_n: int = 5) -> go
         custom_data=["Entity Name", "Crypto Asset", "units", "share"]
     )
     # watermark
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.5, xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=22, color="white"),
-        opacity=0.1,
-        xanchor="center",
-        yanchor="middle",
-    )
+    add_watermark(fig)
+
     fig.update_traces(
         hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}: <b>%{customdata[2]:,.0f}</b> units<br>share <b>%{customdata[3]:.2%}</b><extra></extra>",
         selector=dict(type="bar")
@@ -1801,15 +1773,8 @@ def asset_totals_usd_bar(df_filtered: pd.DataFrame, top_n: int = 5) -> go.Figure
     )
 
     # watermark
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.5, xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=22, color="white"),
-        opacity=0.1,
-        xanchor="center",
-        yanchor="middle",
-    )
+    add_watermark(fig)
+
     return fig
 
 
@@ -1857,15 +1822,8 @@ def asset_totals_supply_share_bar(df_filtered: pd.DataFrame, top_n: int = 5) -> 
         cliponaxis=False
     )
     # watermark
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.5, xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=22, color="white"),
-        opacity=0.1,
-        xanchor="center",
-        yanchor="middle",
-    )
+    add_watermark(fig)
+
     return fig
 
 def diversification_bar(df_filtered):
@@ -1898,12 +1856,8 @@ def diversification_bar(df_filtered):
         xaxis=dict(fixedrange=True),
     )
     fig.update_traces(textposition="outside")
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.05, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=20, color="white"), opacity=0.25,
-        xanchor="center", yanchor="middle",
-    )
+    add_watermark(fig)
+
     return fig
 
 
@@ -1945,12 +1899,8 @@ def target_progress(df_filtered):
         showlegend=False
     )
     fig.update_traces(textposition="outside")
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.05, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=20, color="white"), opacity=0.25,
-        xanchor="center", yanchor="middle",
-    )
+    add_watermark(fig)
+
     return fig
 
 
@@ -2009,12 +1959,8 @@ def premium_vs_size(df_filtered):
         tickvals=[4,5,6,7,8,9,10,11],
         ticktext=["10k","100k","1M","10M","100M","1B","10B","100B"]
     )
-    fig.add_annotation(
-        text=WATERMARK_TEXT,
-        x=0.5, y=0.45, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=35, color="white"), opacity=0.30,
-        xanchor="center", yanchor="middle",
-    )
+    add_watermark(fig)
+
     return fig
 
 
@@ -2199,9 +2145,23 @@ def treemap_composition(df, mode: str = "country_type"):
     # subtle watermark
     fig.add_annotation(
         text=WATERMARK_TEXT,
-        x=0.5, y=0.15, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=35, color="black"), opacity=0.30,
-        xanchor="center", yanchor="middle",
+        x=0.5, y=0.45, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=30, color="black"),
+        opacity=0.7,
+        xanchor="center",
+        yanchor="middle",
+    )
+    # Powered-by footer
+    fig.add_annotation(
+        text="powered by <b>F5Crypto.com</b>",
+        x=1, y=-0.02,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=12, color="white"),
+        #bgcolor="white",
+        #bordercolor="white", borderwidth=4,
+        xanchor="right", yanchor="bottom", opacity=0.7
     )
     return fig
 
@@ -2231,12 +2191,7 @@ def lorenz_curve_chart(p, L, asset: str | None = None):
         showlegend=False,
         hoverlabel=dict(align="left")
     )
-    fig.add_annotation(
-    text=WATERMARK_TEXT,
-    x=0.5, y=0.45, xref="paper", yref="paper",
-    showarrow=False, font=dict(size=35, color="white"), opacity=0.30,
-    xanchor="center", yanchor="middle",
-    )
+    add_watermark(fig)
     return fig
 
 
@@ -2314,12 +2269,8 @@ def exposure_ladder_bar(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
     fig.update_traces(textposition="outside", cliponaxis=False)
     fig.update_layout(margin=dict(r=40))
 
-    fig.add_annotation(
-    text=WATERMARK_TEXT,
-    x=0.5, y=0.45, xref="paper", yref="paper",
-    showarrow=False, font=dict(size=20, color="white"), opacity=0.30,
-    xanchor="center", yanchor="middle",
-    )
+    add_watermark(fig)
+
 
     return fig
 
@@ -2380,12 +2331,8 @@ def mcap_decomposition_bar(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
         barmode="stack",
         xaxis=dict(title="Market Cap in USD (stacked)", tickprefix="$", separatethousands=True),
     )
-    fig.add_annotation(
-    text=WATERMARK_TEXT,
-    x=0.5, y=0.45, xref="paper", yref="paper",
-    showarrow=False, font=dict(size=20, color="white"), opacity=0.30,
-    xanchor="center", yanchor="middle",
-    )
+    add_watermark(fig)
+
     return fig
 
 
@@ -2457,8 +2404,22 @@ def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | Non
     fig.add_annotation(
         text=WATERMARK_TEXT,
         x=0.5, y=0.45, xref="paper", yref="paper",
-        showarrow=False, font=dict(size=35, color="white"), opacity=0.3,
-        xanchor="center", yanchor="bottom",
+        showarrow=False,
+        font=dict(size=20, color="white"),
+        opacity=0.7,
+        xanchor="center",
+        yanchor="middle",
+    )
+    # Powered-by footer
+    fig.add_annotation(
+        text="<i>powered by <b>F5Crypto.com</b></i>",
+        x=1, y=0.9,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=12, color="white"),
+        #bgcolor="white",
+        #bordercolor="white", borderwidth=4,
+        xanchor="right", yanchor="bottom", opacity=0.7
     )
     return fig
 
@@ -2532,10 +2493,24 @@ def corporate_sensitivity_bar(
     )
 
     fig.add_annotation(
-    text=WATERMARK_TEXT,
-    x=0.5, y=0.45, xref="paper", yref="paper",
-    showarrow=False, font=dict(size=35, color="white"), opacity=0.30,
-    xanchor="center", yanchor="middle",
+        text=WATERMARK_TEXT,
+        x=0.5, y=0.45, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=20, color="white"),
+        opacity=0.7,
+        xanchor="center",
+        yanchor="middle",
+    )
+    # Powered-by footer
+    fig.add_annotation(
+        text="<i>powered by <b>F5Crypto.com</b></i>",
+        x=0.5, y=0.05,
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=12, color="white"),
+        #bgcolor="white",
+        #bordercolor="white", borderwidth=4,
+        xanchor="center", yanchor="middle", opacity=0.7
     )
 
     return fig

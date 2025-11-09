@@ -3,12 +3,14 @@ import numpy as np
 import pandas as pd
 
 from modules.filters import apply_filters
-from modules.ui import render_plotly
+from modules.ui import render_plotly, render_ticker
 from modules import charts
 
 def render_valuation_insights():
     #st.title("Crypto Treasury Valuation Insights")
 
+    render_ticker()
+    
     df = st.session_state["data_df"]
     df_filtered = apply_filters(df)
 
@@ -22,8 +24,6 @@ def render_valuation_insights():
                    MarketCap=("Market Cap","max")))
     snap = snap.dropna(subset=["MarketCap"])
     snap = snap[snap["MarketCap"] > 0]
-    total_mcap = float(snap["MarketCap"].sum())
-    total_nav  = float(snap["CryptoNAV"].sum())
 
     # Premium (portfolio-weighted if available)
     prem = st.session_state.get("has_premium", False)

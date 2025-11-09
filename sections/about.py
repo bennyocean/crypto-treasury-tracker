@@ -1,8 +1,10 @@
 import streamlit as st
 
+from modules.ui import render_ticker
 
 def render_about():
-
+    
+    render_ticker()
     #st.title("About")
     
     # Box 1: Project Overview

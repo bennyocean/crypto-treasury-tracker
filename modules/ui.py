@@ -65,9 +65,12 @@ fluid_b64 = load_base64_image(os.path.join(_ASSETS, "fluid-logo.png"))
 cg_b64  = load_base64_image(os.path.join(_ASSETS, "coingecko-logo.png"))
 logo_b64 = load_base64_image(os.path.join(_ASSETS, "ctt-symbol.svg"))
 logo_loading = load_base64_image(os.path.join(_ASSETS, "ctt-logo.svg"))
+f5_logo_64 = load_base64_image(os.path.join(_ASSETS, "f5-logo.jpg"))
+telegram_qr_64 = load_base64_image(os.path.join(_ASSETS, "telegram-qr.jpg"))
 
 CTA_URL = "https://digitalfinancebriefing.substack.com/?utm_source=ctt_app&utm_medium=sidebar_cta&utm_campaign=subscribe"
 SUPPORT_URL = "https://buymeacoffee.com/cryptotreasurytracker"
+TELEGRAM_BOT = "https://t.me/DAT_feed_bot"
 
 def render_header():
     btc = st.session_state["prices"][0]
@@ -143,15 +146,41 @@ def render_header():
 
 
 def render_subscribe_cta():
-    st.sidebar.write(" ")
-    st.sidebar.link_button(
-        "📥  Sign Up for the Weekly Crypto Treasury Newsletter",
-        CTA_URL,
-        type="secondary",
-        width="stretch",
-        help="Click here to sign up for the weekly crypto treasury newsletter."
+
+    st.sidebar.markdown(
+        f"""
+        <div style="
+            text-align:center;
+            background-color:rgba(0,136,204,0.08);
+            padding:16px 8px;
+            border-radius:12px;
+            margin-top:30px;
+            margin-bottom:30px;
+        ">
+            <p style="
+                margin-bottom:6px;
+                font-size:20px;
+                font-weight:600;
+                color:#7ad4fa;
+            ">
+                Get DAT News & Alerts
+            </p>
+            <p style="
+                margin-top:0;
+                margin-bottom:14px;
+                font-size:13px;
+                color:#CCCCCC;
+            ">
+                Scan the QR to follow on Telegram
+            </p>
+            <a href="{TELEGRAM_BOT}" target="_blank">
+                <img src="data:image/jpeg;base64,{telegram_qr_64}"
+                    width="160" style="border-radius:8px;">
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-    st.sidebar.write(" ")
 
 
 def render_support():
@@ -219,3 +248,16 @@ def render_plotly(fig, filename: str, scale: int = 3, fmt: str = "png", extra_co
 
     st.plotly_chart(fig, config=config)  # ← no width
 
+def render_ticker():
+    st.markdown(
+        """
+        <div style="width: 100%; margin-bottom: 10px; height: 30px; overflow: hidden; border: none; border-radius: 0;">
+            <iframe 
+                src="https://rss.app/embed/v1/ticker/liTK5CfH7VtOsY0q" 
+                frameborder="0" 
+                style="width: 100%; height: 100%; border: 0; overflow: hidden;">
+            </iframe>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
