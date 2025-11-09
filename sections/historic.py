@@ -8,7 +8,7 @@ from modules.ui import render_plotly, render_ticker
 
 def cumulative_viewer(df_display, current_df):
     
-    render_ticker()
+
 
     st.markdown(
         "#### Cumulative Market Overview",
@@ -54,7 +54,7 @@ def cumulative_viewer(df_display, current_df):
 
 def render_historic_holdings():
     #st.title("Crypto Treasury History & Trends")
-
+    render_ticker()
     df = st.session_state["historic_df"]
     df_display, df_changes, display_start = apply_filters_historic(df)
 
