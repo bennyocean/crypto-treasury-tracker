@@ -25,7 +25,7 @@ country_emoji_map = {
     "Belgium": "🇧🇪",
     "Poland": "🇵🇱",
     "Liechtenstein": "🇱🇮",
-    "Czechia": "🇨🇿",
+    "Czech Republic": "🇨🇿",
     "Hungary": "🇭🇺",
     "Romania": "🇷🇴",
     "Turkey": "🇹🇷",
