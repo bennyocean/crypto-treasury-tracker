@@ -66,11 +66,11 @@ cg_b64  = load_base64_image(os.path.join(_ASSETS, "coingecko-logo.png"))
 logo_b64 = load_base64_image(os.path.join(_ASSETS, "ctt-symbol.svg"))
 logo_loading = load_base64_image(os.path.join(_ASSETS, "ctt-logo.svg"))
 f5_logo_64 = load_base64_image(os.path.join(_ASSETS, "f5-logo.jpg"))
-telegram_qr_64 = load_base64_image(os.path.join(_ASSETS, "telegram-qr.jpg"))
+telegram_qr_64 = load_base64_image(os.path.join(_ASSETS, "t_me-DATNewsAndAlerts.jpg"))
 
 CTA_URL = "https://digitalfinancebriefing.substack.com/?utm_source=ctt_app&utm_medium=sidebar_cta&utm_campaign=subscribe"
 SUPPORT_URL = "https://buymeacoffee.com/cryptotreasurytracker"
-TELEGRAM_BOT = "https://t.me/DAT_feed_bot"
+TELEGRAM_BOT = "https://t.me/DATNewsAndAlerts"
 
 def render_header():
     btc = st.session_state["prices"][0]
@@ -163,7 +163,7 @@ def render_subscribe_cta():
                 font-weight:600;
                 color:#7ad4fa;
             ">
-                Get DAT News & Alerts
+                Get Latest DAT News
             </p>
             <p style="
                 margin-top:0;
@@ -171,7 +171,7 @@ def render_subscribe_cta():
                 font-size:13px;
                 color:#CCCCCC;
             ">
-                Scan the QR to follow on Telegram
+                Scan the QR to join the community
             </p>
             <a href="{TELEGRAM_BOT}" target="_blank">
                 <img src="data:image/jpeg;base64,{telegram_qr_64}"
