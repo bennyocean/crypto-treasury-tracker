@@ -33,6 +33,7 @@ ASSETS = [
     "CORE",
     "VAULTA",
     "FLUID",
+    "ZEC"
 ]
 
 COINGECKO_IDS = {
@@ -61,6 +62,7 @@ COINGECKO_IDS = {
     "CORE": "coredaoorg",
     "VAULTA": "vaulta",
     "FLUID": "instadapp",
+    "ZEC": "zcash",
 }
 
 DEFAULT_PRICES = {
@@ -89,6 +91,7 @@ DEFAULT_PRICES = {
     "CORE": 0.25,
     "VAULTA": 0.35,
     "FLUID": 5.0,
+    "ZEC": 700.0,
 }
 
 SUPPLY_CAPS = {
@@ -117,6 +120,7 @@ SUPPLY_CAPS = {
     "CORE": 1_015_193_271,
     "VAULTA": 1_599_315_411,
     "FLUID": 77_753_292,
+    "ZEC": 16_383_381,
 }
 
 
@@ -203,7 +207,7 @@ def read_central_prices_from_sheet() -> tuple[dict | None, pd.Timestamp | None]:
         last_ts = df["ts"].max()
         return price_map, last_ts
     except Exception as e:
-        print("❌ read_central_prices_from_sheet error:", e)
+        print("read_central_prices_from_sheet error:", e)
         return None, None
 
 

@@ -27,6 +27,7 @@ COLORS = {"BTC":"#f7931a",
           "CORE":  "#f79620",
           "VAULTA": "#170515",
           "FLUID": "#3a74ff",
+          "ZEC": "#F5A800",
           }
 
 def load_base64_image(path):
@@ -61,6 +62,7 @@ wlfi_b64 = load_base64_image(os.path.join(_ASSETS, "world-liberty-financial-logo
 zig_b64 = load_base64_image(os.path.join(_ASSETS, "zigchain-logo.png"))
 vaulta_b64 = load_base64_image(os.path.join(_ASSETS, "vaulta-logo.png"))
 fluid_b64 = load_base64_image(os.path.join(_ASSETS, "fluid-logo.png"))
+zec_b64 = load_base64_image(os.path.join(_ASSETS, "zec-logo.png"))
 
 cg_b64  = load_base64_image(os.path.join(_ASSETS, "coingecko-logo.png"))
 logo_b64 = load_base64_image(os.path.join(_ASSETS, "ctt-symbol.svg"))
@@ -98,6 +100,7 @@ def render_header():
     core = st.session_state["prices"][22]
     a = st.session_state["prices"][23]
     fluid = st.session_state["prices"][24]
+    zec = st.session_state["prices"][25]
 
     st.markdown(
         """

@@ -13,7 +13,8 @@ ASSETS_ORDER = [
     "SUI", "LTC", "HYPE", "DOGE", "TRX",
     "ADA", "TON", "WLFI", "PUMP", "ATH",
     "BONK", "AVAX", "CRO", "LINK", "BERA",
-    "TRUMP", "ZIG", "CORE", "VAULTA", "FLUID"
+    "TRUMP", "ZIG", "CORE", "VAULTA", "FLUID",
+    "ZEC"
 ]
 COLORS = {"BTC":"#f7931a",
           "ETH":"#6F6F6F",
@@ -40,6 +41,7 @@ COLORS = {"BTC":"#f7931a",
           "CORE":  "#f79620",
           "VAULTA": "#170515",
           "FLUID": "#3a74ff",
+          "ZEC": "#F5A800"
           }
 TYPE_PALETTE = {
     "Public Company": (123, 197, 237),  # blue
@@ -76,6 +78,7 @@ supply_caps = {
     "CORE": 1_015_193_271,
     "VAULTA": 1_599_315_411,
     "FLUID": 77_753_292,
+    "ZEC": 16_383_381
 }
 default_blue = "#66cded"
 

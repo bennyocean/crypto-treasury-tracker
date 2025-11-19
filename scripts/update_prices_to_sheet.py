@@ -30,6 +30,7 @@ ASSETS = [
     "CORE",
     "VAULTA",
     "FLUID",
+    "ZEC",
 ]
 
 COINGECKO_IDS = {
@@ -58,6 +59,7 @@ COINGECKO_IDS = {
     "CORE": "coredaoorg",
     "VAULTA": "vaulta",
     "FLUID": "instadapp",
+    "ZEC": "zcash",
 }
 
 

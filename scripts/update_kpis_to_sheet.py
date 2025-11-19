@@ -34,6 +34,7 @@ ASSETS = [
     "CORE",
     "VAULTA",
     "FLUID",
+    "ZEC",
 ]
 
 SUPPLY_CAPS = {
@@ -62,6 +63,8 @@ SUPPLY_CAPS = {
     "CORE": 1_015_193_271,
     "VAULTA": 1_599_315_411,
     "FLUID": 77_753_292,
+    "ZEC": 16_383_381,
+
 }
 
 
