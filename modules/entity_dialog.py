@@ -21,7 +21,7 @@ def add_watermark(fig, main_text=WATERMARK_TEXT):
         yanchor="middle",
     )
     # Powered-by footer
-    fig.add_annotation(
+    """fig.add_annotation(
         text="powered by <b>F5Crypto.com</b>",
         x=1, y=0,
         xref="paper", yref="paper",
@@ -30,7 +30,7 @@ def add_watermark(fig, main_text=WATERMARK_TEXT):
         bgcolor="white",
         bordercolor="white", borderwidth=4,
         xanchor="right", yanchor="bottom", opacity=0.7
-    )
+    )"""
     return fig
 
 def show_entity_dialog(

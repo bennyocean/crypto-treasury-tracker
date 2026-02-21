@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import html
 from zoneinfo import ZoneInfo
-import pandas as pd
 
 from urllib.parse import urlencode, quote_plus
 
@@ -119,12 +117,6 @@ def _badge_svg_uri(text: str,
     est_tw = max(12, int(len(text) * font_size * 0.60))
     w = est_tw + 2 * pad_x
 
-    def _best_text_on(bg_rgb):
-        r, g, b = [c/255.0 for c in bg_rgb]
-        def _lin(c): return c/12.92 if c <= 0.04045 else ((c+0.055)/1.055)**2.4
-        L = 0.2126*_lin(r) + 0.7152*_lin(g) + 0.0722*_lin(b)
-        return (255,255,255) if (1.05/(L+0.05) >= (L+0.05)/0.05) else (0,0,0)
-
     tr, tg, tb = _best_text_on(bg_rgb)
     r, g, b = bg_rgb
     txt = html.escape(text)
@@ -143,6 +135,58 @@ def _badge_svg_uri(text: str,
     return f"data:image/svg+xml;base64,{b64}"
 
 
+def _rank_cache_key(df_active: pd.DataFrame) -> tuple:
+    """Small hash key to reuse rank computations while data stays unchanged."""
+    usd_sum = float(pd.to_numeric(df_active.get("USD Value"), errors="coerce").sum())
+    statuses = tuple(sorted(df_active.get("status", pd.Series([], dtype="string")).dropna().unique()))
+    assets = tuple(sorted(df_active.get("Crypto Asset", pd.Series([], dtype="string")).dropna().unique()))
+    return (len(df_active), usd_sum, statuses, assets)
+
+
+def _get_rank_maps(df_active: pd.DataFrame):
+    cache = st.session_state.setdefault("_overview_rank_cache", {})
+    key = _rank_cache_key(df_active)
+    if key in cache:
+        return cache[key]
+
+    _global_sorted = df_active.sort_values("USD Value", ascending=False).copy()
+    _global_sorted["__global_rank"] = np.arange(1, len(_global_sorted) + 1)
+
+    _asset_sorted = df_active.sort_values(["Crypto Asset", "USD Value"], ascending=[True, False]).copy()
+    _asset_sorted["__asset_rank"] = _asset_sorted.groupby("Crypto Asset").cumcount() + 1
+
+    _global_rank_map = {
+        (r["Entity Name"], r["Crypto Asset"]): int(r["__global_rank"])
+        for _, r in _global_sorted[["Entity Name", "Crypto Asset", "__global_rank"]].iterrows()
+    }
+    _asset_rank_map = {
+        (r["Entity Name"], r["Crypto Asset"]): int(r["__asset_rank"])
+        for _, r in _asset_sorted[["Entity Name", "Crypto Asset", "__asset_rank"]].iterrows()
+    }
+
+    _df_agg = (
+        df_active.groupby("Entity Name", as_index=False)["USD Value"]
+            .sum()
+            .sort_values("USD Value", ascending=False)
+            .reset_index(drop=True)
+    )
+    _df_agg["__agg_global_rank"] = np.arange(1, len(_df_agg) + 1)
+    _agg_global_rank_map = dict(zip(_df_agg["Entity Name"], _df_agg["__agg_global_rank"]))
+
+    cache.clear()
+    cache[key] = (_global_rank_map, _asset_rank_map, _agg_global_rank_map)
+    return cache[key]
+
+
+def _get_prices_cached():
+    cache_key = "_central_prices_cache"
+    cache = st.session_state.get(cache_key)
+    if cache:
+        return cache.get("prices", {}), cache.get("ts")
+    prices, ts = read_central_prices_from_sheet()
+    st.session_state[cache_key] = {"prices": prices or {}, "ts": ts}
+    return st.session_state[cache_key]["prices"], st.session_state[cache_key]["ts"]
+
 
 st.session_state.setdefault("active_dialog", None)
 
@@ -154,6 +198,7 @@ def render_overview():
     render_ticker()
     
     df = st.session_state["data_df"]
+    prices_cg, ts_utc = _get_prices_cached()
 
     # KPIs
     render_kpis(df, st.session_state.get("kpi_snapshots"))
@@ -164,6 +209,8 @@ def render_overview():
     #st.markdown("#### Crypto Treasury Leaderboard", help="Ranked view of entities by digital asset treasury holdings.")
 
     table = df.copy()
+    table["Holdings (Unit)"] = pd.to_numeric(table["Holdings (Unit)"], errors="coerce").fillna(0)
+    table["USD Value"] = pd.to_numeric(table["USD Value"], errors="coerce").fillna(0)
     table = table.sort_values("USD Value", ascending=False).reset_index(drop=True)
     table.index = table.index + 1
     table.index.name = "Rank"
@@ -171,10 +218,8 @@ def render_overview():
     table["Holdings (Unit)"] = table["Holdings (Unit)"].round(0)
     table["USD Value"] = table["USD Value"].round(0)
 
-    table["% of Supply"] = table.apply(
-        lambda row: row["Holdings (Unit)"] / supply_caps.get(row["Crypto Asset"], 1) * 100,
-        axis=1
-    ).round(2)
+    _supply_series = table["Crypto Asset"].map(supply_caps).fillna(1)
+    table["% of Supply"] = (table["Holdings (Unit)"] / _supply_series * 100).round(2)
 
     cols = list(table.columns)
     if "Holdings (Unit)" in cols and "% of Supply" in cols:
@@ -200,7 +245,6 @@ def render_overview():
     # --- normalize fallback ---
     list_choice = list_choice or "All Assets"
 
-    # --- apply selection ---
     # --- apply selection ---
     et_global = st.session_state.get("flt_entity_type", "All")
 
@@ -449,7 +493,7 @@ def render_overview():
     with c4_kpi:
         with st.container(border=True):
             st.metric(
-                "\# of DAT Wrappers",
+                " of DAT Wrappers",
                 dat_count,
                 help="Number of entities classified as Digital Asset Treasury Vehicles (DATs) included in the selected view."
             )
@@ -477,10 +521,6 @@ def render_overview():
         filtered["status"].astype(str).str.lower().map(_status_order).fillna(1).astype(int)
     )
 
-    # Ensure numeric for sort keys
-    filtered["Holdings (Unit)"] = pd.to_numeric(filtered["Holdings (Unit)"], errors="coerce").fillna(0)
-    filtered["USD Value"] = pd.to_numeric(filtered["USD Value"], errors="coerce").fillna(0)
-
     filtered = filtered.sort_values(
         by=["__status_order", "USD Value", "Holdings (Unit)", "Entity Name"],
         ascending=[True, False, False, False],
@@ -490,33 +530,10 @@ def render_overview():
     sub = filtered.head(row_count).reset_index(drop=True)
     sub["__row_rank"] = np.arange(1, len(sub) + 1)
 
-    sub["__row_rank"] = np.arange(1, len(sub) + 1)
-
-
     # --- RANKS on the full dataset (not filtered) ---
-    df_all = st.session_state["data_df"].copy()
-
     _pending = {"pending_funded", "pending_announced"}
-    df_all_active = df_all[~df_all["status"].isin(_pending)].copy()
-
-    # Global rank by USD Value
-    _global_sorted = df_all_active.sort_values("USD Value", ascending=False).copy()
-    _global_sorted["__global_rank"] = np.arange(1, len(_global_sorted) + 1)
-
-    # Per-asset rank by USD Value
-    _asset_sorted = df_all_active.sort_values(["Crypto Asset", "USD Value"], ascending=[True, False]).copy()
-    _asset_sorted["__asset_rank"] = _asset_sorted.groupby("Crypto Asset").cumcount() + 1
-
-
-    # Lookup dicts by (Entity Name, Crypto Asset)
-    _global_rank_map = {
-        (r["Entity Name"], r["Crypto Asset"]): int(r["__global_rank"])
-        for _, r in _global_sorted[["Entity Name", "Crypto Asset", "__global_rank"]].iterrows()
-    }
-    _asset_rank_map = {
-        (r["Entity Name"], r["Crypto Asset"]): int(r["__asset_rank"])
-        for _, r in _asset_sorted[["Entity Name", "Crypto Asset", "__asset_rank"]].iterrows()
-    }
+    df_all_active = st.session_state["data_df"][~st.session_state["data_df"]["status"].isin(_pending)].copy()
+    _global_rank_map, _asset_rank_map, _agg_global_rank_map = _get_rank_maps(df_all_active)
     # Determine display ranks per row, hiding ranks for pending rows
     is_pending_sub = sub["status"].isin(_pending)
 
@@ -531,17 +548,6 @@ def render_overview():
         _asset_rank_map.get((e, a)) if not p else "—"
         for e, a, p in zip(sub["Entity Name"], sub["Crypto Asset"], is_pending_sub)
     ]
-
-    # --- Aggregate global rank by total Crypto-NAV across all assets ---
-    _df_agg = (
-        df_all_active.groupby("Entity Name", as_index=False)["USD Value"]
-            .sum()
-            .sort_values("USD Value", ascending=False)
-            .reset_index(drop=True)
-    )
-
-    _df_agg["__agg_global_rank"] = np.arange(1, len(_df_agg) + 1)
-    _agg_global_rank_map = dict(zip(_df_agg["Entity Name"], _df_agg["__agg_global_rank"]))
 
     display = sub.copy()
 
@@ -818,7 +824,6 @@ def render_overview():
                 etype_badge = _badge_svg_uri(str(etype), TYPE_PALETTE.get(str(etype), (250, 250, 250)), h=22)
                 is_datco = bool(int(row.get("DAT", 0)))
 
-                prices_cg, _ = read_central_prices_from_sheet() or ({}, None)
                 current_price     = prices_cg.get(asset, float("nan"))
                 avg_cost_per_unit = row.get("Avg Cost", float("nan"))
 
@@ -915,8 +920,6 @@ def render_overview():
 
 
     # Last update info
-    prices_cg, ts_utc = read_central_prices_from_sheet()
-
     def _format_cet(ts):
         if ts is None or pd.isna(ts):
             return "n/a"

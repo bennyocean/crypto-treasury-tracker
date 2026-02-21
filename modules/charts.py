@@ -99,7 +99,7 @@ def add_watermark(fig, main_text=WATERMARK_TEXT):
         yanchor="middle",
     )
     # Powered-by footer
-    fig.add_annotation(
+    """fig.add_annotation(
         text="<i>powered by <b>F5Crypto.com</b></i>",
         x=1, y=0,
         xref="paper", yref="paper",
@@ -108,7 +108,7 @@ def add_watermark(fig, main_text=WATERMARK_TEXT):
         #bgcolor="white",
         #bordercolor="white", borderwidth=4,
         xanchor="right", yanchor="bottom", opacity=0.7
-    )
+    )"""
     return fig
 
 def format_usd(value):
@@ -577,7 +577,7 @@ def render_world_map(df, asset_filter, type_filter, value_range_filter):
         yanchor="middle",
     )
     # Powered-by footer
-    fig.add_annotation(
+    """fig.add_annotation(
         text="powered by <b>F5Crypto.com</b>",
         x=0.98, y=0.02,
         xref="paper", yref="paper",
@@ -586,7 +586,7 @@ def render_world_map(df, asset_filter, type_filter, value_range_filter):
         bgcolor="white",
         bordercolor="white", borderwidth=4,
         xanchor="right", yanchor="bottom", opacity=0.7
-    )
+    )"""
 
     fig.update_layout(
         geo=dict(
@@ -1323,7 +1323,7 @@ def entity_type_distribution_pie(df: pd.DataFrame, mode: str = "count"):
         yanchor="middle",
     )
     # Powered-by footer
-    fig.add_annotation(
+    """fig.add_annotation(
         text="powered by <b>F5Crypto.com</b>",
         x=1, y=0,
         xref="paper", yref="paper",
@@ -1331,7 +1331,7 @@ def entity_type_distribution_pie(df: pd.DataFrame, mode: str = "count"):
         font=dict(size=12, color="white"),
         #bgcolor="white",
         #bordercolor="white", borderwidth=4,
-        xanchor="right", yanchor="bottom", opacity=0.7)
+        xanchor="right", yanchor="bottom", opacity=0.7)"""
 
     fig.update_layout(
         legend=dict(orientation="h", yanchor="bottom", y=1.25, xanchor="center", x=0.5),
@@ -2156,16 +2156,17 @@ def treemap_composition(df, mode: str = "country_type"):
         yanchor="middle",
     )
     # Powered-by footer
-    fig.add_annotation(
-        text="powered by <b>F5Crypto.com</b>",
-        x=1, y=-0.02,
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=12, color="white"),
-        #bgcolor="white",
-        #bordercolor="white", borderwidth=4,
-        xanchor="right", yanchor="bottom", opacity=0.7
-    )
+    """    fig.add_annotation(
+            text="powered by <b>F5Crypto.com</b>",
+            x=1, y=-0.02,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=12, color="white"),
+            #bgcolor="white",
+            #bordercolor="white", borderwidth=4,
+            xanchor="right", yanchor="bottom", opacity=0.7
+        )
+    """
     return fig
 
 
@@ -2414,7 +2415,7 @@ def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | Non
         yanchor="middle",
     )
     # Powered-by footer
-    fig.add_annotation(
+    """fig.add_annotation(
         text="<i>powered by <b>F5Crypto.com</b></i>",
         x=1, y=0.9,
         xref="paper", yref="paper",
@@ -2423,7 +2424,7 @@ def mnav_comparison_bar(df: pd.DataFrame, top_n: int = 20, max_mnav: float | Non
         #bgcolor="white",
         #bordercolor="white", borderwidth=4,
         xanchor="right", yanchor="bottom", opacity=0.7
-    )
+    )"""
     return fig
 
 
@@ -2505,7 +2506,7 @@ def corporate_sensitivity_bar(
         yanchor="middle",
     )
     # Powered-by footer
-    fig.add_annotation(
+    """fig.add_annotation(
         text="<i>powered by <b>F5Crypto.com</b></i>",
         x=0.5, y=0.05,
         xref="paper", yref="paper",
@@ -2514,6 +2515,6 @@ def corporate_sensitivity_bar(
         #bgcolor="white",
         #bordercolor="white", borderwidth=4,
         xanchor="center", yanchor="middle", opacity=0.7
-    )
+    )"""
 
     return fig

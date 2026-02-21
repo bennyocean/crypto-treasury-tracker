@@ -22,19 +22,19 @@ def render_sidebar():
     st.sidebar.image("assets/ctt-logo.svg", width=250)
     #st.sidebar.markdown("_The most comprehensive Digital Asset Treasury Terminal!_")
 
-    st.sidebar.markdown(
-        f"""
-        <div style="text-align:center; margin-top:-6px;">
-            <p style="margin-bottom:8px; font-size:13px; color:white;">powered by</p>
-            <a href="{f5_url}" target="_blank">
-                <img src="data:image/jpeg;base64,{f5_logo_64}" 
-                    width="150" style="border-radius:0%;">
-            </a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    
+    #st.sidebar.markdown(
+     #   f"""
+      #  <div style="text-align:center; margin-top:-6px;">
+       #     <p style="margin-bottom:8px; font-size:13px; color:white;">powered by</p>
+        #    <a href="{f5_url}" target="_blank">
+         #       <img src="data:image/jpeg;base64,{f5_logo_64}" 
+          #          width="150" style="border-radius:0%;">
+           # </a>
+    #    </div>
+     #   """,
+      #  unsafe_allow_html=True
+    #)
+
     #st.sidebar.divider()
 
 
